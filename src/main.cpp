@@ -17,6 +17,8 @@
 #include "debug.hpp"
 #include "physical_device.hpp"
 #include "queue_family.hpp"
+#include "device.hpp"
+
 
 // constants
 const uint32_t WIDTH = 800;
@@ -39,7 +41,9 @@ private:
   VkInstance instance; // connection between application and vulkan library
   VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU handle
+  VkDevice device; // logical device, used to interface with the GPU
   QueueFamilyIndices queueFamilies; // queue families supported by the GPU
+  VkQueue graphicsQueue; // handle to the graphics queue
 
   void initWindow() {
     glfwInit();
@@ -58,6 +62,8 @@ private:
     setupDebugMessenger(instance, debugMessenger);
     pickPhysicalDevice(instance, physicalDevice);
     findQueueFamilies(physicalDevice, queueFamilies);
+    createLogicalDevice(physicalDevice, queueFamilies, device);
+    vkGetDeviceQueue(device, queueFamilies.graphicsFamily.value(), 0, &graphicsQueue);
   }
 
   void mainLoop() {
@@ -71,6 +77,7 @@ private:
     #ifndef NDEBUG
       DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     #endif
+    vkDestroyDevice(device, nullptr);
     vkDestroyInstance(instance, nullptr);
 
     // glfw
