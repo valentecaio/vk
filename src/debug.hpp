@@ -32,9 +32,6 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 
 
 
-
-
-
 // validation layer callback, static to avoid the this pointer
 // VKAPI_ATTR and VKAPI_CALL are necessary for the function to be called by vulkan
 // simple print to stderr
@@ -95,21 +92,5 @@ void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMes
   populateDebugMessengerCreateInfo(createInfo);
   if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
     throw std::runtime_error("failed to set up debug messenger!");
-  }
-}
-
-void listExtensions() {
-  #ifdef NDEBUG
-    return;
-  #endif
-
-  uint32_t extensionCount = 0;
-  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-  std::vector<VkExtensionProperties> extensions(extensionCount);
-  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-  std::cout << "available extensions:" << std::endl;
-  for (const auto& extension : extensions) {
-    std::cout << '\t' << extension.extensionName << std::endl;
   }
 }
