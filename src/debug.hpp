@@ -87,10 +87,29 @@ void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& create
 
 // create and setup a debug messenger
 void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMessenger) {
-  // if (!enableValidationLayers) return;
+  #ifdef NDEBUG
+    return;
+  #endif
+
   VkDebugUtilsMessengerCreateInfoEXT createInfo{};
   populateDebugMessengerCreateInfo(createInfo);
   if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
     throw std::runtime_error("failed to set up debug messenger!");
+  }
+}
+
+void listExtensions() {
+  #ifdef NDEBUG
+    return;
+  #endif
+
+  uint32_t extensionCount = 0;
+  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+  std::vector<VkExtensionProperties> extensions(extensionCount);
+  vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+  std::cout << "available extensions:" << std::endl;
+  for (const auto& extension : extensions) {
+    std::cout << '\t' << extension.extensionName << std::endl;
   }
 }

@@ -8,13 +8,15 @@
 
 // standard
 #include <iostream>  // std::cerr, std::endl
-#include <stdexcept> // std::exception
+#include <stdexcept> // std::exception, std::runtime_error
 #include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
-#include <vector>    // std::vector
+#include <vector>
 #include <cstring>   // strcmp
 
 // local
 #include "debug.hpp"
+#include "device.hpp"
+#include "queue_family.hpp"
 
 // constants
 const uint32_t WIDTH = 800;
@@ -43,9 +45,11 @@ public:
   }
 
 private:
-  GLFWwindow* window;
+  GLFWwindow* window;  // window handle
   VkInstance instance; // connection between application and vulkan library
   VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
+  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // handle to the GPU
+  QueueFamilyIndices queueFamilies;
 
   void initWindow() {
     glfwInit();
@@ -61,8 +65,9 @@ private:
 
   void initVulkan() {
     createInstance();
-    if (enableValidationLayers)
-      setupDebugMessenger(instance, debugMessenger);
+    setupDebugMessenger(instance, debugMessenger);
+    pickPhysicalDevice(instance, physicalDevice);
+    findQueueFamilies(physicalDevice, queueFamilies);
   }
 
   void mainLoop() {
@@ -113,8 +118,7 @@ private:
       createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
       createInfo.ppEnabledLayerNames = validationLayers.data();
 
-      // debug messenger
-      // we need this to cover instance creation and destruction events
+      // we need this to cover instance creation and destruction events by the debug messenger
       populateDebugMessengerCreateInfo(debugCreateInfo);
       createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
     } else {
@@ -125,18 +129,6 @@ private:
     // create instance
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
       throw std::runtime_error("failed to create instance!");
-    }
-  }
-
-  void listExtensions() {
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-    std::vector<VkExtensionProperties> extensions(extensionCount);
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-    std::cout << "available extensions:" << std::endl;
-    for (const auto& extension : extensions) {
-      std::cout << '\t' << extension.extensionName << std::endl;
     }
   }
 
