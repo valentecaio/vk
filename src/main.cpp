@@ -15,7 +15,7 @@
 // local
 #include "instance.hpp"
 #include "debug.hpp"
-#include "device.hpp"
+#include "physical_device.hpp"
 #include "queue_family.hpp"
 
 // constants
