@@ -53,9 +53,10 @@ private:
   
   // swap chain
   VkSwapchainKHR swapChain;             // handle to the swap chain
-  std::vector<VkImage> swapChainImages; // handles to the swap chain images
   VkFormat swapChainImageFormat;        // format of the swap chain images
   VkExtent2D swapChainExtent;           // resolution of the swap chain images
+  std::vector<VkImage> swapChainImages; // handles to the swap chain images
+  std::vector<VkImageView> swapChainImageViews;
 
   void initWindow() {
     glfwInit();
@@ -76,6 +77,7 @@ private:
     pickPhysicalDevice(instance, surface, physicalDevice, queueFamilies);
     createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
     createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
+    createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
   }
 
   void mainLoop() {
@@ -89,6 +91,9 @@ private:
     #ifndef NDEBUG
       DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     #endif
+    for (auto imageView : swapChainImageViews) {
+      vkDestroyImageView(device, imageView, nullptr);
+    }
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
