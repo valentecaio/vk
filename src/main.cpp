@@ -12,12 +12,12 @@
 #include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
 #include <vector>
 
-// local
 #include "instance.hpp"
 #include "debug.hpp"
 #include "physical_device.hpp"
 #include "queue_family.hpp"
 #include "device.hpp"
+#include "swap_chain.hpp"
 
 
 // constants
@@ -38,14 +38,24 @@ public:
 
 private:
   GLFWwindow* window;    // window handle
+
+  // vulkan
   VkInstance instance;   // connection between application and vulkan library
   VkDevice device;       // logical device, used to interface with the GPU
   VkSurfaceKHR surface;  // surface to present images to
-  VkQueue graphicsQueue; // handle to the graphics queue
-  VkQueue presentQueue;  // handle to the presentation queue
   VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU handle
-  QueueFamilyIndices queueFamilies; // queue families supported by the GPU
+
+  // queues
+  QueueFamilyIndices queueFamilies; // queue families indices in the physical device
+  VkQueue graphicsQueue;            // handle to the graphics queue
+  VkQueue presentQueue;             // handle to the presentation queue
+  
+  // swap chain
+  VkSwapchainKHR swapChain;             // handle to the swap chain
+  std::vector<VkImage> swapChainImages; // handles to the swap chain images
+  VkFormat swapChainImageFormat;        // format of the swap chain images
+  VkExtent2D swapChainExtent;           // resolution of the swap chain images
 
   void initWindow() {
     glfwInit();
@@ -65,6 +75,7 @@ private:
     createSurface();
     pickPhysicalDevice(instance, surface, physicalDevice, queueFamilies);
     createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
+    createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
   }
 
   void mainLoop() {
@@ -78,6 +89,7 @@ private:
     #ifndef NDEBUG
       DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     #endif
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);

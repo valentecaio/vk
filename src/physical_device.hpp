@@ -6,40 +6,67 @@
 #include <map>       // std::multimap
 #include <stdexcept> // std::runtime_error
 #include <vector>
+#include <set>
 
 #include "queue_family.hpp"
+#include "swap_chain.hpp"
 
-int rateDeviceSuitability(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface) {
+const std::vector<const char*> deviceExtensions = {
+  VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
+bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
+  uint32_t extensionCount;
+  vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, nullptr);
+  std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+  vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionCount, availableExtensions.data());
+
+  // we use a set instead of a vector because we will be removing extensions
+  // from it as we check for their presence
+  std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+  for (const auto& extension : availableExtensions) {
+    requiredExtensions.erase(extension.extensionName);
+  }
+
+  return requiredExtensions.empty();
+}
+
+int rateDeviceSuitability(VkPhysicalDevice physDevice, VkSurfaceKHR surface) {
   // name, supported vulkan version, memory properties, queue families, extensions,
   // swap chain support, device type, etc
   VkPhysicalDeviceProperties deviceProperties;
-  vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+  vkGetPhysicalDeviceProperties(physDevice, &deviceProperties);
 
   // texture compression, 64-bit floats, multi viewport rendering, geometry shader,
   // tessellation shader, shader storage buffer, 16-bit floats, 8-bit integers, etc
   VkPhysicalDeviceFeatures deviceFeatures;
-  vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+  vkGetPhysicalDeviceFeatures(physDevice, &deviceFeatures);
 
   // application cannot function without geometry shaders
-  if (!deviceFeatures.geometryShader) {
+  if (!deviceFeatures.geometryShader)
     return 0;
-  }
 
   // application cannot function without a graphics queue
-  QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice, surface);
-  if (!queueFamilyIndices.isComplete()) {
+  QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physDevice, surface);
+  if (!queueFamilyIndices.isComplete())
     return 0;
-  }
 
-  int score = 0;
+  // application cannot function without swap chain support
+  if (!checkDeviceExtensionSupport(physDevice))
+    return 0;
 
-  // discrete GPUs have a significant performance advantage
-  if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-    score += 1000;
-  }
+  // swap chain needs at least one supported format and one present mode
+  SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physDevice, surface);
+  if (swapChainSupport.formats.empty() || swapChainSupport.presentModes.empty())
+    return 0;
 
   // maximum possible size of textures affects graphics quality
-  score += deviceProperties.limits.maxImageDimension2D;
+  int score = deviceProperties.limits.maxImageDimension2D;
+
+  // discrete GPUs have a significant performance advantage
+  if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+    score += 1000;
 
   return score;
 }

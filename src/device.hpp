@@ -7,8 +7,10 @@
 #include <vector>
 #include <set>
 
+#include "physical_device.hpp"
+
 // create a logical device and a graphics queue
-void createLogicalDevice(VkPhysicalDevice physicalDevice, VkDevice& device,
+void createLogicalDevice(VkPhysicalDevice physDevice, VkDevice& device,
                          QueueFamilyIndices indices, VkQueue *graphicsQueue,
                          VkQueue *presentQueue) {
   // contains a bool for every feature in Vulkan
@@ -38,7 +40,9 @@ void createLogicalDevice(VkPhysicalDevice physicalDevice, VkDevice& device,
   createInfo.pEnabledFeatures = &deviceFeatures;
 
   // logical device extensions
-  createInfo.enabledExtensionCount = 0;
+  // TODO: deviceExtensions is defined in physical_device.hpp
+  createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+  createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
   // the validation layers per device are deprecated
   // recent versions of Vulkan ignore the following parameters
@@ -51,7 +55,7 @@ void createLogicalDevice(VkPhysicalDevice physicalDevice, VkDevice& device,
   #endif
 
   // logical device creation
-  if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+  if (vkCreateDevice(physDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
     throw std::runtime_error("failed to create logical device!");
   }
 
