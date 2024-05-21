@@ -5,25 +5,36 @@
 
 #include <stdexcept> // std::runtime_error
 #include <vector>
+#include <set>
 
-void createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndices indices, VkDevice& device) {
+// create a logical device and a graphics queue
+void createLogicalDevice(VkPhysicalDevice physicalDevice, VkDevice& device,
+                         QueueFamilyIndices indices, VkQueue *graphicsQueue,
+                         VkQueue *presentQueue) {
   // contains a bool for every feature in Vulkan
-  // enable the desired features
+  // enable the desired features here
   VkPhysicalDeviceFeatures deviceFeatures{};
+  // deviceFeatures.samplerAnisotropy = VK_TRUE;
 
-  // create a single queue from the graphics queue family for this logical device
-  VkDeviceQueueCreateInfo queueCreateInfo{};
-  queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-  queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-  queueCreateInfo.queueCount = 1;
+  // create queues for each queue family in indices
+  std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+  std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+
   float queuePriority = 1.0f; // [0.0, 1.0] range, mandatory
-  queueCreateInfo.pQueuePriorities = &queuePriority;
+  for (uint32_t queueFamily : uniqueQueueFamilies) {
+    VkDeviceQueueCreateInfo queueCreateInfo{};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = queueFamily;
+    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+    queueCreateInfos.push_back(queueCreateInfo);
+  }
 
   // logical device parameters
   VkDeviceCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  createInfo.pQueueCreateInfos = &queueCreateInfo;
-  createInfo.queueCreateInfoCount = 1;
+  createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+  createInfo.pQueueCreateInfos = queueCreateInfos.data();
   createInfo.pEnabledFeatures = &deviceFeatures;
 
   // logical device extensions
@@ -43,5 +54,9 @@ void createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndices ind
   if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
     throw std::runtime_error("failed to create logical device!");
   }
+
+  // retrieve the queue handles
+  vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, graphicsQueue);
+  vkGetDeviceQueue(device, indices.presentFamily.value(),  0, presentQueue);
 }
 

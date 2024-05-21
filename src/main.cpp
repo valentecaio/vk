@@ -37,13 +37,15 @@ public:
   }
 
 private:
-  GLFWwindow* window;  // window handle
-  VkInstance instance; // connection between application and vulkan library
+  GLFWwindow* window;    // window handle
+  VkInstance instance;   // connection between application and vulkan library
+  VkDevice device;       // logical device, used to interface with the GPU
+  VkSurfaceKHR surface;  // surface to present images to
+  VkQueue graphicsQueue; // handle to the graphics queue
+  VkQueue presentQueue;  // handle to the presentation queue
   VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU handle
-  VkDevice device; // logical device, used to interface with the GPU
   QueueFamilyIndices queueFamilies; // queue families supported by the GPU
-  VkQueue graphicsQueue; // handle to the graphics queue
 
   void initWindow() {
     glfwInit();
@@ -60,10 +62,9 @@ private:
   void initVulkan() {
     createInstance(instance, debugMessenger);
     setupDebugMessenger(instance, debugMessenger);
-    pickPhysicalDevice(instance, physicalDevice);
-    findQueueFamilies(physicalDevice, queueFamilies);
-    createLogicalDevice(physicalDevice, queueFamilies, device);
-    vkGetDeviceQueue(device, queueFamilies.graphicsFamily.value(), 0, &graphicsQueue);
+    createSurface();
+    pickPhysicalDevice(instance, surface, physicalDevice, queueFamilies);
+    createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
   }
 
   void mainLoop() {
@@ -78,6 +79,7 @@ private:
       DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     #endif
     vkDestroyDevice(device, nullptr);
+    vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
 
     // glfw
@@ -85,6 +87,11 @@ private:
     glfwTerminate();
   }
 
+  void createSurface() {
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create window surface!");
+    }
+  }
 };
 
 int main() {
