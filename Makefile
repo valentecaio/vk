@@ -15,6 +15,7 @@ endif
 # Source and build directory, compiler and compiler tags
 SRCDIR := src
 BUILDDIR := build
+SHADERDIR := src/shaders
 LFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
 CFLAGS = -Wall -std=c++17 $(OPENMP_FLAG) $(NDEBUG_FLAG) \
  -I lib/ \
@@ -50,6 +51,7 @@ $(EXE): $(OBJ)
 
 clean:
 	rm -f *.o $(BUILDDIR)/*
+	rm -f $(SHADERDIR)/*.spv
 
 # print variables
 print:
@@ -67,6 +69,10 @@ run: $(EXE)
 run_mt:
 	@$(MAKE) run OPENMP=1
 
-.PHONY: all clean print run run_mt
+# compile shaders
+shaders:
+	cd $(SHADERDIR) && bash compile.sh
+
+.PHONY: all clean print run run_mt shaders
 
 # EOF
