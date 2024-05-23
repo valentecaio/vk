@@ -3,6 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <iostream>
 #include <map>       // std::multimap
 #include <stdexcept> // std::runtime_error
 #include <vector>
@@ -86,6 +87,20 @@ void pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
   std::vector<VkPhysicalDevice> devices(deviceCount);
   vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+  #ifndef NDEBUG
+
+  // print list of candidates
+  std::cout << "Available physical devices:" << std::endl;
+  int i = 0;
+  for (const auto& dev : devices) {
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(dev, &deviceProperties);
+    std::cout << "\t" << i++ << ":  " << deviceProperties.deviceName << std::endl;
+  }
+  physicalDevice = devices[0];
+
+  #else
+
   // sort candidates by increasing score
   std::multimap<int, VkPhysicalDevice> candidates;
   for (const auto& device : devices) {
@@ -96,9 +111,12 @@ void pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
   // check if the best candidate is suitable
   if (candidates.rbegin()->first > 0) {
     physicalDevice = candidates.rbegin()->second;
+    // physicalDevice = devices[1];
   } else {
     throw std::runtime_error("failed to find a suitable GPU!");
   }
+
+  #endif
 
   // fill queueFamilies with the queue families supported by the chosen device
   queueFamilies = findQueueFamilies(physicalDevice, surface);
