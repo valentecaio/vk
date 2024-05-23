@@ -15,7 +15,7 @@ endif
 # Source and build directory, compiler and compiler tags
 SRCDIR := src
 BUILDDIR := build
-SHADERDIR := src/shaders
+SHADERDIR := shaders
 LFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
 CFLAGS = -Wall -std=c++17 $(OPENMP_FLAG) $(NDEBUG_FLAG) \
  -I lib/ \
@@ -38,9 +38,14 @@ OBJ := $(subst $(SRCDIR)/, $(BUILDDIR)/, $(OBJ))
 ### Rules ###
 
 # Build
-all: $(EXE)
+all: $(EXE) shaders
 
-# Compile
+# Compile shaders (from SHADERDIR to BUILDDIR)
+shaders:
+	@mkdir -p $(dir $(BUILDDIR))
+	cd $(SHADERDIR) && bash compile.sh $(CURDIR)/$(BUILDDIR)
+
+# Compile source files (from SRCDIR to BUILDDIR)
 $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(dir $@)
 	g++ $(CFLAGS) -c -o $@ $< $(LFLAGS)
@@ -50,8 +55,7 @@ $(EXE): $(OBJ)
 	g++ $(CFLAGS) -o $@ $^ $(LFLAGS)
 
 clean:
-	rm -f *.o $(BUILDDIR)/*
-	rm -f $(SHADERDIR)/*.spv
+	rm -f *.o $(BUILDDIR)/* $(SHADERDIR)/*.spv
 
 # print variables
 print:
@@ -68,10 +72,6 @@ run: $(EXE)
 # run in multi-threaded mode
 run_mt:
 	@$(MAKE) run OPENMP=1
-
-# compile shaders
-shaders:
-	cd $(SHADERDIR) && bash compile.sh
 
 .PHONY: all clean print run run_mt shaders
 
