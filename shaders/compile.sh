@@ -1,9 +1,9 @@
 #!/bin/bash
 
-output_dir="$1"
-if [ -z "$output_dir" ]; then
-  output_dir="."
+outdir="$1"
+if [ -z "$outdir" ]; then
+  outdir="."
 fi
 
-/usr/local/bin/glslc shader.vert -o "$output_dir/vert.spv"
-/usr/local/bin/glslc shader.frag -o "$output_dir/frag.spv"
+/usr/local/bin/glslc shader.vert -o "$outdir/vert.spv"
+/usr/local/bin/glslc shader.frag -o "$outdir/frag.spv"

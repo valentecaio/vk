@@ -66,7 +66,7 @@ print:
 	@echo OBJ = $(OBJ)
 
 # compile and run in debug mode
-run: $(EXE)
+run: $(EXE) shaders
 	./$(EXE)
 
 # run in multi-threaded mode

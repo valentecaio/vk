@@ -18,6 +18,9 @@
 #include "queue_family.hpp"
 #include "device.hpp"
 #include "swap_chain.hpp"
+#include "pipeline.hpp"
+#include "render_pass.hpp"
+#include "utils.hpp"
 
 
 // constants
@@ -58,6 +61,11 @@ private:
   std::vector<VkImage> swapChainImages; // handles to the swap chain images
   std::vector<VkImageView> swapChainImageViews;
 
+  // pipeline
+  VkPipeline graphicsPipeline;     // handle to the graphics pipeline
+  VkPipelineLayout pipelineLayout; // uniform values for shaders
+  VkRenderPass renderPass;         // render pass, collection of attachments, subpasses, and dependencies
+
   void initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // disable openGL context
@@ -78,6 +86,8 @@ private:
     createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
     createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
     createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
+    createRenderPass(device, swapChainImageFormat, renderPass);
+    createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline);
   }
 
   void mainLoop() {
@@ -88,15 +98,16 @@ private:
 
   void cleanup() {
     // vulkan
-    #ifndef NDEBUG
-      DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
-    #endif
+    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
     for (auto imageView : swapChainImageViews) {
       vkDestroyImageView(device, imageView, nullptr);
     }
     vkDestroySwapchainKHR(device, swapChain, nullptr);
     vkDestroyDevice(device, nullptr);
     vkDestroySurfaceKHR(instance, surface, nullptr);
+    DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     vkDestroyInstance(instance, nullptr);
 
     // glfw
