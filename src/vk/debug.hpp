@@ -12,7 +12,7 @@ namespace vk {
 // They are not automatically loaded, so we need to load manually
 
 // create a debug messenger
-VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
+VkResult createDebugUtilsMessengerEXT(VkInstance instance,
                                       const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
                                       const VkAllocationCallbacks* pAllocator,
                                       VkDebugUtilsMessengerEXT* pDebugMessenger) {
@@ -25,7 +25,7 @@ VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 // destroy a debug messenger
-void DestroyDebugUtilsMessengerEXT(VkInstance instance,
+void destroyDebugUtilsMessengerEXT(VkInstance instance,
                                    VkDebugUtilsMessengerEXT debugMessenger,
                                    const VkAllocationCallbacks* pAllocator) {
   #ifdef NDEBUG
@@ -97,7 +97,7 @@ void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMes
 
   VkDebugUtilsMessengerCreateInfoEXT createInfo{};
   populateDebugMessengerCreateInfo(createInfo);
-  if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+  if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
     throw std::runtime_error("failed to set up debug messenger!");
   }
 }

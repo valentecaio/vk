@@ -11,7 +11,7 @@ class Application {
   public:
     void run() {
       initWindow();
-      kilauea.init(window);
+      kilauea = Kilauea(window);
       mainLoop();
       cleanup();
     }
