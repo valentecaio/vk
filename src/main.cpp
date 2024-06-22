@@ -3,6 +3,7 @@
 #include "utils/utils.hpp"
 
 #include "vk/kilauea.hpp"
+#include "vk/vertex.hpp"
 
 using namespace vk;
 
@@ -12,7 +13,8 @@ class Application {
   public:
     void run() {
       initWindow();
-      kilauea = Kilauea(window);
+      kilauea = Kilauea(window, vertices);
+      kilauea.init();
 
       // resize callback
       if (RESIZABLE) {
@@ -28,6 +30,12 @@ class Application {
     GLFWwindow* window;  // window handle
     Kilauea kilauea;     // vulkan handle
 
+    std::vector<Vertex> vertices = {
+      {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+      {{0.5f,  0.5f}, {0.0f, 1.0f, 0.0f}},
+      {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+    };
+
     void initWindow() {
       glfwInit();
       glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // disable openGL context
@@ -41,6 +49,7 @@ class Application {
     void mainLoop() {
       while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        // TODO: update vertices
         kilauea.drawFrame();
       }
 

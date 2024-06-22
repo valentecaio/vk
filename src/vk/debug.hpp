@@ -26,7 +26,7 @@ VkResult createDebugUtilsMessengerEXT(VkInstance instance,
 
 // destroy a debug messenger
 void destroyDebugUtilsMessengerEXT(VkInstance instance,
-                                   VkDebugUtilsMessengerEXT debugMessenger,
+                                   VkDebugUtilsMessengerEXT debugMsgr,
                                    const VkAllocationCallbacks* pAllocator) {
   #ifdef NDEBUG
     return VK_SUCCESS;
@@ -34,7 +34,7 @@ void destroyDebugUtilsMessengerEXT(VkInstance instance,
 
   auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
   if (func != nullptr)
-    func(instance, debugMessenger, pAllocator);
+    func(instance, debugMsgr, pAllocator);
 }
 
 
@@ -90,14 +90,14 @@ void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& create
 }
 
 // create and setup a debug messenger
-void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMessenger) {
+void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMsgr) {
   #ifdef NDEBUG
     return;
   #endif
 
   VkDebugUtilsMessengerCreateInfoEXT createInfo{};
   populateDebugMessengerCreateInfo(createInfo);
-  if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
+  if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMsgr) != VK_SUCCESS) {
     throw std::runtime_error("failed to set up debug messenger!");
   }
 }

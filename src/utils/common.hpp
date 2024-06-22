@@ -22,6 +22,8 @@
 #include <vector>
 #include <set>
 #include <optional>
+#include <glm.hpp>   // lib/glm-1.0.1/
+#include <array>
 
 
 namespace vk {

@@ -2,6 +2,7 @@
 
 #include "../utils/common.hpp"
 #include "queue_family.hpp"
+#include "vertex.hpp"
 
 namespace vk {
 
@@ -42,7 +43,8 @@ void createCommandBuffers(VkDevice device, VkCommandPool commandPool, std::vecto
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass, VkExtent2D swapChainExtent,
                          std::vector<VkFramebuffer>& swapChainFramebuffers, uint32_t imageIndex,
-                         VkPipeline graphicsPipeline, bool useDynamicStates) {
+                         VkPipeline graphicsPipeline, bool useDynamicStates, VkBuffer vertexBuffer,
+                         const std::vector<Vertex>& vertices) {
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   beginInfo.pInheritanceInfo = nullptr; // only relevant for secondary command buffers
@@ -100,8 +102,12 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
   }
 
-  // draw a triangle
-  vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+  // bind vertex buffer to the command buffer
+  VkBuffer vertexBuffers[] = {vertexBuffer};
+  VkDeviceSize offsets[] = {0};
+  vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+
+  vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
   vkCmdEndRenderPass(commandBuffer);
 

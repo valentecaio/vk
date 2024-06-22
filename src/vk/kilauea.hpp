@@ -13,6 +13,8 @@
 #include "queue_family.hpp"
 #include "render_pass.hpp"
 #include "swap_chain.hpp"
+#include "vertex.hpp"
+
 
 namespace vk {
 
@@ -21,11 +23,12 @@ class Kilauea {
   public:
     // constructors
     Kilauea() = default;
-    Kilauea(GLFWwindow* window) : window(window) { init(); };
+    Kilauea(GLFWwindow* window) : window(window) {};
+    Kilauea(GLFWwindow* window, std::vector<Vertex>& vertices) : window(window), vertices(vertices) {};
 
     void init() {
-      createInstance(instance, debugMessenger);
-      setupDebugMessenger(instance, debugMessenger);
+      createInstance(instance, debugMsgr);
+      setupDebugMessenger(instance, debugMsgr);
       createSurface();
       pickPhysicalDevice(instance, surface, physicalDevice, queueFamilies);
       createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
@@ -35,24 +38,27 @@ class Kilauea {
       createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline, useDynamicStates);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
+      createVertexBuffer(device, physicalDevice, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
       createCommandBuffers(device, commandPool, commandBuffers);
       createSyncObjects();
     }
 
     void cleanup() {
       cleanupSwapChain();
+      vkDestroyPipeline(device, graphicsPipeline, nullptr);
+      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+      vkDestroyRenderPass(device, renderPass, nullptr);
+      vkDestroyBuffer(device, vertexBuffer, nullptr);
+      vkFreeMemory(device, vertexBufferMemory, nullptr);
       for (size_t i=0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
       }
       vkDestroyCommandPool(device, commandPool, nullptr);
-      vkDestroyPipeline(device, graphicsPipeline, nullptr);
-      vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-      vkDestroyRenderPass(device, renderPass, nullptr);
       vkDestroyDevice(device, nullptr);
+      destroyDebugUtilsMessengerEXT(instance, debugMsgr, nullptr);
       vkDestroySurfaceKHR(instance, surface, nullptr);
-      destroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
       vkDestroyInstance(instance, nullptr);
     }
 
@@ -77,7 +83,9 @@ class Kilauea {
 
       // record the command buffer
       vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
-      recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline, useDynamicStates);
+      recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent,
+                          swapChainFramebuffers, imageIndex, graphicsPipeline,
+                          useDynamicStates, vertexBuffer, vertices);
 
       // semaphores used to signal that the image is ready
       VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
@@ -153,17 +161,16 @@ class Kilauea {
       kilauea->framebufferResized = true;
     }
 
-
   private:
     GLFWwindow* window;  // window handle
 
     // vulkan
-    VkInstance instance;       // connection between application and vulkan library
-    VkDevice device;           // logical device, used to interface with the GPU
-    VkSurfaceKHR surface;      // surface to present images to
-    VkCommandPool commandPool; // command pool for submitting command buffers
-    VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
-    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU handle
+    VkInstance instance;                // connection between application and vulkan library
+    VkDevice device;                    // logical device, used to interface with the GPU
+    VkSurfaceKHR surface;               // surface to present images to
+    VkCommandPool commandPool;          // command pool for submitting command buffers
+    VkPhysicalDevice physicalDevice;    // GPU handle
+    VkDebugUtilsMessengerEXT debugMsgr; // used to report validation layer errors
 
     // queues
     QueueFamilyIndices queueFamilies; // queue families indices in the physical device
@@ -191,10 +198,16 @@ class Kilauea {
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
 
+    // vertex buffer
+    VkBuffer vertexBuffer;              // handle to the vertex buffer
+    VkDeviceMemory vertexBufferMemory;  // handle to the vertex buffer memory
+
     // state
     uint32_t curFrame = 0;           // index of the current frame (used in buffers and semaphores)
     bool useDynamicStates = true;    // whether to use dynamic states in the pipeline (viewport, scissor)
     bool framebufferResized = false; // flag to recreate the swap chain after a resize
+    std::vector<Vertex> vertices;
+
 
 
     void createSurface() {

@@ -2,6 +2,7 @@
 
 #include "../utils/common.hpp"
 #include "../utils/utils.hpp"
+#include "vertex.hpp"
 
 namespace vk {
 
@@ -47,12 +48,15 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
   // vertex shader input: none for now
+  auto bindingDescription = Vertex::getBindingDescription();
+  auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
   VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
   vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertexInputInfo.pVertexBindingDescriptions = nullptr; // data is per-vertex or per-instance
-  vertexInputInfo.vertexBindingDescriptionCount = 0;
-  vertexInputInfo.pVertexAttributeDescriptions = nullptr; // attribute data format
-  vertexInputInfo.vertexAttributeDescriptionCount = 0;
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription; // per-vertex data format
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
   // input assembly - options:
   // VK_PRIMITIVE_TOPOLOGY_POINT_LIST: points from vertices
