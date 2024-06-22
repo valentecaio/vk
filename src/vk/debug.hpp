@@ -4,7 +4,7 @@
 // The debug messenger is used to report validation layer errors
 // It is not necessary for the application to run, but it is useful for debugging
 
-#include "utils/common.hpp"
+#include "../utils/common.hpp"
 
 namespace vk {
 

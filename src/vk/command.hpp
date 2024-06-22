@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/common.hpp"
+#include "../utils/common.hpp"
 #include "queue_family.hpp"
 
 namespace vk {
@@ -82,7 +82,8 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
   // bind the pipeline - GRAPHICS or COMPUTE
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-  // viewport and scissor are dynamic states, so they can be changed without recreating the pipeline
+  // uncomment if viewport and scissor were declared as dynamic states on creation (pipeline.hpp),
+  // so they can be changed without recreating the pipeline
   // VkViewport viewport{};
   // viewport.x = 0.0f;
   // viewport.y = 0.0f;

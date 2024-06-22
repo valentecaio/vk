@@ -1,7 +1,8 @@
 #pragma once
 
-#include "utils/common.hpp"
+#include "../utils/common.hpp"
 #include "physical_device.hpp"
+#include "instance.hpp"
 
 namespace vk {
 
