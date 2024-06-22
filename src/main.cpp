@@ -2,16 +2,16 @@
 #include "utils/common.hpp"
 #include "utils/utils.hpp"
 
-#include "instance.hpp"
+#include "command.hpp"
 #include "debug.hpp"
-#include "physical_device.hpp"
-#include "queue_family.hpp"
 #include "device.hpp"
-#include "swap_chain.hpp"
-#include "pipeline.hpp"
-#include "render_pass.hpp"
 #include "framebuffer.hpp"
-#include "command_pool.hpp"
+#include "instance.hpp"
+#include "physical_device.hpp"
+#include "pipeline.hpp"
+#include "queue_family.hpp"
+#include "render_pass.hpp"
+#include "swap_chain.hpp"
 
 using namespace vk;
 
@@ -30,9 +30,10 @@ private:
   GLFWwindow* window;    // window handle
 
   // vulkan
-  VkInstance instance;   // connection between application and vulkan library
-  VkDevice device;       // logical device, used to interface with the GPU
-  VkSurfaceKHR surface;  // surface to present images to
+  VkInstance instance;       // connection between application and vulkan library
+  VkDevice device;           // logical device, used to interface with the GPU
+  VkSurfaceKHR surface;      // surface to present images to
+  VkCommandPool commandPool; // command pool for submitting command buffers
   VkDebugUtilsMessengerEXT debugMessenger; // used to report validation layer errors
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE; // GPU handle
 
@@ -42,22 +43,19 @@ private:
   VkQueue presentQueue;             // handle to the presentation queue
   
   // swap chain
-  VkSwapchainKHR swapChain;             // handle to the swap chain
-  VkFormat swapChainImageFormat;        // format of the swap chain images
-  VkExtent2D swapChainExtent;           // resolution of the swap chain images
-  std::vector<VkImage> swapChainImages; // handles to the swap chain images
-  std::vector<VkImageView> swapChainImageViews;
+  VkSwapchainKHR swapChain;         // handle to the swap chain
+  VkFormat swapChainImageFormat;    // format of the swap chain images
+  VkExtent2D swapChainExtent;       // resolution of the swap chain images
 
-  // pipeline
+  // per-swap-chain objects
+  std::vector<VkImage> swapChainImages;             // handles to the swap chain images
+  std::vector<VkImageView> swapChainImageViews;     // handles to the swap chain image views
+  std::vector<VkFramebuffer> swapChainFramebuffers; // handles to the swap chain framebuffers
+
+  // graphics pipeline
   VkPipeline graphicsPipeline;     // handle to the graphics pipeline
   VkPipelineLayout pipelineLayout; // uniform values for shaders
   VkRenderPass renderPass;         // render pass, collection of attachments, subpasses, and dependencies
-
-  // framebuffers
-  std::vector<VkFramebuffer> swapChainFramebuffers;
-
-  // command pool
-  VkCommandPool commandPool;
 
   // per-frame objects
   uint32_t curFrame = 0; // index of the current frame (used in the following arrays)
@@ -119,18 +117,24 @@ private:
 
 
   void drawFrame() {
+    // wait for the last frame to be finished
     vkWaitForFences(device, 1, &inFlightFences[curFrame], VK_TRUE, UINT64_MAX);
     vkResetFences(device, 1, &inFlightFences[curFrame]);
 
+    // acquire an image from the swap chain
     uint32_t imageIndex;
     vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
 
+    // record the command buffer
     vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
     recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
 
+    // semaphores used to signal that the image is ready
     VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[curFrame]};
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[curFrame]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
+    // submit the command buffer
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.waitSemaphoreCount = 1;
@@ -138,15 +142,13 @@ private:
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffers[curFrame];
-
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[curFrame]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
-
     if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[curFrame]) != VK_SUCCESS) {
       throw std::runtime_error("failed to submit draw command buffer!");
     }
 
+    // present the image
     VkSwapchainKHR swapChains[] = {swapChain};
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -156,7 +158,6 @@ private:
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
-
     vkQueuePresentKHR(presentQueue, &presentInfo);
 
     // advance to the next frame
