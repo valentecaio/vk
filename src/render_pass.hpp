@@ -37,16 +37,28 @@ void createRenderPass(VkDevice device, VkFormat swapChainImageFormat, VkRenderPa
   colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-  // subpasses are subsequent rendering operations that depend on the contents of the previous subpass
-  VkAttachmentReference colorAttachmentRef{};
   // the index of the attachment in the attachment descriptions array
   // directly corresponds to the layout(location) in the shader
+  VkAttachmentReference colorAttachmentRef{};
   colorAttachmentRef.attachment = 0; // we only have one attachment
   colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // best layout for color attachments
+
+  // subpasses are subsequent rendering operations that depend on the contents of the previous subpass
   VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS; // the subpass is a graphics subpass
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &colorAttachmentRef;
+
+  // added on chapter 'rendering and presentation'
+  // add a subpass dependency to handle the transition of the image layout
+  // from VK_IMAGE_LAYOUT_UNDEFINED to VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+  VkSubpassDependency dependency{};
+  dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  dependency.dstSubpass = 0;
+  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.srcAccessMask = 0;
+  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
   // create render pass
   VkRenderPassCreateInfo renderPassInfo{};
@@ -55,6 +67,9 @@ void createRenderPass(VkDevice device, VkFormat swapChainImageFormat, VkRenderPa
   renderPassInfo.pAttachments = &colorAttachment;
   renderPassInfo.subpassCount = 1;
   renderPassInfo.pSubpasses = &subpass;
+  renderPassInfo.dependencyCount = 1;
+  renderPassInfo.pDependencies = &dependency;
+
   if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }

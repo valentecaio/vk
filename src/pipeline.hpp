@@ -7,6 +7,7 @@
 
 #include "utils.hpp"
 
+
 VkShaderModule createShaderModule(VkDevice device, std::vector<char>& code) {
   VkShaderModuleCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -191,7 +192,7 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   // pipeline creation
   VkGraphicsPipelineCreateInfo pipelineInfo{};
   pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
+  pipelineInfo.stageCount = 2; // number of shader stages
   pipelineInfo.pStages = shaderStages;
   pipelineInfo.pVertexInputState = &vertexInputInfo;
   pipelineInfo.pInputAssemblyState = &inputAssembly;
