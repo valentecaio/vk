@@ -1,16 +1,10 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <iostream>
-#include <map>       // std::multimap
-#include <stdexcept> // std::runtime_error
-#include <vector>
-#include <set>
-
+#include "utils/common.hpp"
 #include "queue_family.hpp"
 #include "swap_chain.hpp"
+
+namespace vk {
 
 const std::vector<const char*> deviceExtensions = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -116,3 +110,5 @@ void pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface,
   // fill queueFamilies with the queue families supported by the chosen device
   queueFamilies = findQueueFamilies(physicalDevice, surface);
 }
+
+} // namespace vk

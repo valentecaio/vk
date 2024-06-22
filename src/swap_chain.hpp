@@ -1,15 +1,9 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <vector>
-#include <cstdint>   // uint32_t
-#include <limits>    // std::numeric_limits
-#include <algorithm> // std::clamp
-#include <stdexcept> // std::runtime_error
-
+#include "utils/common.hpp"
 #include "queue_family.hpp"
+
+namespace vk {
 
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;      // min/max number of images, min/max width and height of images
@@ -187,3 +181,5 @@ void createImageViews(VkDevice device, const std::vector<VkImage>& swapChainImag
     }
   }
 }
+
+} // namespace vk

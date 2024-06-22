@@ -1,16 +1,6 @@
-// glfw
-#define GLFW_INCLUDE_VULKAN // replace the include <vulkan/vulkan.h>, needs to be before glfw3.h
-#include <GLFW/glfw3.h>
 
-// glm
-// openGL uses [-1, 1] for depth, vulkan uses [0, 1]
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
-// standard
-#include <iostream>  // std::cerr, std::endl
-#include <stdexcept> // std::exception, std::runtime_error
-#include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
-#include <vector>
+#include "utils/common.hpp"
+#include "utils/utils.hpp"
 
 #include "instance.hpp"
 #include "debug.hpp"
@@ -22,13 +12,8 @@
 #include "render_pass.hpp"
 #include "framebuffer.hpp"
 #include "command_pool.hpp"
-#include "utils.hpp"
 
-
-// constants
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
-
+using namespace vk;
 
 // application class //
 
@@ -71,14 +56,15 @@ private:
   // framebuffers
   std::vector<VkFramebuffer> swapChainFramebuffers;
 
-  // commands
+  // command pool
   VkCommandPool commandPool;
-  VkCommandBuffer commandBuffer;
 
-  // sync objects
-  VkSemaphore imageAvailableSemaphore;
-  VkSemaphore renderFinishedSemaphore;
-  VkFence inFlightFence;
+  // per-frame objects
+  uint32_t curFrame = 0; // index of the current frame (used in the following arrays)
+  std::vector<VkCommandBuffer> commandBuffers;
+  std::vector<VkSemaphore> imageAvailableSemaphores;
+  std::vector<VkSemaphore> renderFinishedSemaphores;
+  std::vector<VkFence> inFlightFences;
 
 
   void initWindow() {
@@ -105,12 +91,16 @@ private:
     createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline);
     createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
     createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
-    createCommandBuffer(device, commandPool, commandBuffer);
+    createCommandBuffers(device, commandPool, commandBuffers);
     createSyncObjects();
   }
 
 
   void createSyncObjects() {
+    imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
     VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -118,25 +108,27 @@ private:
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // start in signaled state for the first frame
 
-    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-        vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS ||
-        vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create semaphores or fences!");
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+      if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+          vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+          vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create semaphores or fences!");
+      }
     }
   }
 
 
   void drawFrame() {
-    vkWaitForFences(device, 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(device, 1, &inFlightFence);
+    vkWaitForFences(device, 1, &inFlightFences[curFrame], VK_TRUE, UINT64_MAX);
+    vkResetFences(device, 1, &inFlightFences[curFrame]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
 
-    vkResetCommandBuffer(commandBuffer, 0); // 0 flags
-    recordCommandBuffer(commandBuffer, renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
+    vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
+    recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
 
-    VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+    VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[curFrame]};
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 
     VkSubmitInfo submitInfo{};
@@ -145,13 +137,13 @@ private:
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.pCommandBuffers = &commandBuffers[curFrame];
 
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[curFrame]};
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[curFrame]) != VK_SUCCESS) {
       throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -166,6 +158,9 @@ private:
     presentInfo.pImageIndices = &imageIndex;
 
     vkQueuePresentKHR(presentQueue, &presentInfo);
+
+    // advance to the next frame
+    curFrame = (curFrame+1) % MAX_FRAMES_IN_FLIGHT;
   }
 
   void mainLoop() {
@@ -179,9 +174,12 @@ private:
 
   void cleanup() {
     // vulkan
-    vkDestroySemaphore(device, imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(device, renderFinishedSemaphore, nullptr);
-    vkDestroyFence(device, inFlightFence, nullptr);
+    for (size_t i=0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+      vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+      vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+      vkDestroyFence(device, inFlightFences[i], nullptr);
+    }
+    // command buffers are automatically freed when the command pool is destroyed
     vkDestroyCommandPool(device, commandPool, nullptr);
     for (auto framebuffer : swapChainFramebuffers) {
       vkDestroyFramebuffer(device, framebuffer, nullptr);

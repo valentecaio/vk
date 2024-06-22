@@ -1,13 +1,9 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <stdexcept> // std::runtime_error
-#include <vector>
-#include <set>
-
+#include "utils/common.hpp"
 #include "physical_device.hpp"
+
+namespace vk {
 
 // create a logical device and a graphics queue
 void createLogicalDevice(VkPhysicalDevice physDevice, VkDevice& device,
@@ -64,3 +60,4 @@ void createLogicalDevice(VkPhysicalDevice physDevice, VkDevice& device,
   vkGetDeviceQueue(device, indices.presentFamily.value(),  0, presentQueue);
 }
 
+} // namespace vk

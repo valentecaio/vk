@@ -1,11 +1,8 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "utils/common.hpp"
 
-#include <vector>
-#include <stdexcept>
-
+namespace vk {
 
 void createFramebuffers(VkDevice device, std::vector<VkImageView>& swapChainImageViews,
                         std::vector<VkFramebuffer>& swapChainFramebuffers, VkExtent2D swapChainExtent,
@@ -31,3 +28,5 @@ void createFramebuffers(VkDevice device, std::vector<VkImageView>& swapChainImag
     }
   }
 }
+
+} // namespace vk

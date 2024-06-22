@@ -1,13 +1,9 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <vector>
-#include <stdexcept>
-
+#include "utils/common.hpp"
 #include "queue_family.hpp"
 
+namespace vk {
 
 void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
                        QueueFamilyIndices queueFamilyIndices, VkCommandPool& commandPool) {
@@ -16,8 +12,10 @@ void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfa
   poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
   // two possible flags:
-  // TRANSIENT_BIT: hint that command buffers are rerecorded with new commands very often (may change memory allocation strategy)
-  // RESET_COMMAND_BUFFER_BIT: allow command buffers to be rerecorded individually, without this flag they all have to be reset together
+  // TRANSIENT_BIT: hint that command buffers are rerecorded with new commands
+  //   very often (may change memory allocation strategy).
+  // RESET_COMMAND_BUFFER_BIT: allow command buffers to be rerecorded individually,
+  //   without this flag they all have to be reset together.
   poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
   if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
@@ -25,17 +23,19 @@ void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfa
   }
 }
 
-void createCommandBuffer(VkDevice device, VkCommandPool commandPool, VkCommandBuffer& commandBuffer) {
+void createCommandBuffers(VkDevice device, VkCommandPool commandPool, std::vector<VkCommandBuffer>& commandBuffers) {
+  commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
   VkCommandBufferAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
   allocInfo.commandPool = commandPool;
-  allocInfo.commandBufferCount = 1; // number of command buffers to allocate
+  allocInfo.commandBufferCount = (uint32_t)MAX_FRAMES_IN_FLIGHT; // number of command buffers to allocate
 
   // PRIMARY: can be submitted to a queue for execution, but cannot be called from other command buffers
   // SECONDARY: cannot be submitted directly, but can be called from primary command buffers
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-  if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+  if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
     throw std::runtime_error("failed to allocate command buffers!");
   }
 }
@@ -50,9 +50,9 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
   // flags:
   // ONE_TIME_SUBMIT_BIT: the command buffer will be rerecorded right after executing it once
   // RENDER_PASS_CONTINUE_BIT: this is a secondary command buffer that will be entirely
-  // within a single render pass
+  //   within a single render pass
   // SIMULTANEOUS_USE_BIT: the command buffer can be resubmitted while it is also already
-  // pending execution
+  //   pending execution
   beginInfo.flags = 0; // optional
 
   if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
@@ -106,3 +106,5 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
     throw std::runtime_error("failed to record command buffer!");
   }
 }
+
+} // namespace vk

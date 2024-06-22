@@ -1,12 +1,9 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "utils/common.hpp"
+#include "utils/utils.hpp"
 
-#include <vector>
-
-#include "utils.hpp"
-
+namespace vk {
 
 VkShaderModule createShaderModule(VkDevice device, std::vector<char>& code) {
   VkShaderModuleCreateInfo createInfo{};
@@ -215,3 +212,5 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   vkDestroyShaderModule(device, fragShaderModule, nullptr);
   vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
+
+} // namespace vk

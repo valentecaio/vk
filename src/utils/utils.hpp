@@ -1,7 +1,8 @@
 #pragma once
 
-#include <fstream>
-#include <vector>
+#include "common.hpp"
+
+namespace vk {
 
 static std::vector<char> readFile(const std::string& filename) {
   // ate: start reading at the end of the file
@@ -22,3 +23,5 @@ static std::vector<char> readFile(const std::string& filename) {
   file.close();
   return buffer;
 }
+
+} // namespace vk

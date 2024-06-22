@@ -1,13 +1,12 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <iostream>
-
 // This file contains the debug messenger setup and callback
 // The debug messenger is used to report validation layer errors
 // It is not necessary for the application to run, but it is useful for debugging
+
+#include "utils/common.hpp"
+
+namespace vk {
 
 // The two functions below are extension functions, not part of the core.
 // They are not automatically loaded, so we need to load manually
@@ -102,3 +101,5 @@ void setupDebugMessenger(VkInstance instance, VkDebugUtilsMessengerEXT& debugMes
     throw std::runtime_error("failed to set up debug messenger!");
   }
 }
+
+} // namespace vk

@@ -1,10 +1,8 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "utils/common.hpp"
 
-#include <optional>
-#include <vector>
+namespace vk {
 
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
@@ -41,3 +39,5 @@ QueueFamilyIndices findQueueFamilies(VkPhysicalDevice physDevice, VkSurfaceKHR s
 
   return indices;
 }
+
+} // namespace vk

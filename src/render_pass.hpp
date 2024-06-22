@@ -1,7 +1,8 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "utils/common.hpp"
+
+namespace vk {
 
 void createRenderPass(VkDevice device, VkFormat swapChainImageFormat, VkRenderPass& renderPass) {
   // a Color attachment is a framebuffer that contains color values (we have only one)
@@ -74,3 +75,5 @@ void createRenderPass(VkDevice device, VkFormat swapChainImageFormat, VkRenderPa
     throw std::runtime_error("failed to create render pass!");
   }
 }
+
+} // namespace vk

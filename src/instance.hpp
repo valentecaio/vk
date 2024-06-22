@@ -1,15 +1,9 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <iostream>  // std::cerr, std::endl
-#include <stdexcept> // std::exception, std::runtime_error
-#include <cstdlib>   // EXIT_SUCCESS, EXIT_FAILURE
-#include <vector>
-#include <cstring>   // strcmp
-
+#include "utils/common.hpp"
 #include "debug.hpp"
+
+namespace vk {
 
 const std::vector<const char*> validationLayers = {
   "VK_LAYER_KHRONOS_validation",
@@ -111,3 +105,5 @@ void createInstance(VkInstance& instance, VkDebugUtilsMessengerEXT& debugMesseng
     throw std::runtime_error("failed to create instance!");
   }
 }
+
+} // namespace vk
