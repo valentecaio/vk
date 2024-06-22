@@ -32,7 +32,7 @@ class Kilauea {
       createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
       createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
       createRenderPass(device, swapChainImageFormat, renderPass);
-      createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline);
+      createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline, useDynamicStates);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
       createCommandBuffers(device, commandPool, commandBuffers);
@@ -63,8 +63,9 @@ class Kilauea {
       // acquire an image from the swap chain
       uint32_t imageIndex;
       auto result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
-      if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+      if (/*framebufferResized || */result == VK_ERROR_OUT_OF_DATE_KHR) {
         // window was resized
+        framebufferResized = false;
         recreateSwapChain();
         return;
       } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -76,7 +77,7 @@ class Kilauea {
 
       // record the command buffer
       vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
-      recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
+      recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline, useDynamicStates);
 
       // semaphores used to signal that the image is ready
       VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
@@ -109,8 +110,9 @@ class Kilauea {
       presentInfo.pImageIndices = &imageIndex;
 
       result = vkQueuePresentKHR(presentQueue, &presentInfo);
-      if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+      if (framebufferResized || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         // window was resized
+        framebufferResized = false;
         recreateSwapChain();
       } else if (result != VK_SUCCESS) {
         throw std::runtime_error("failed to present swap chain image!");
@@ -125,11 +127,30 @@ class Kilauea {
     }
 
     void recreateSwapChain() {
+      // TODO: code below never happens, window size is always at least 1
+      // pause the application until the window is shown again (minimized window)
+      int width = 0, height = 0;
+      glfwGetFramebufferSize(window, &width, &height);
+      while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+      }
+
+      // wait for the frame to be finished before recreating the swap chain
       vkDeviceWaitIdle(device);
 
+      // recreate the swap chain
+      cleanupSwapChain();
       createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
       createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
+    }
+
+    // change the flag and wait for the current frame to be finished before resizing
+    // static because GLFW does not know how to properly call a member function with the right this pointer
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+      auto kilauea = reinterpret_cast<Kilauea*>(glfwGetWindowUserPointer(window));
+      kilauea->framebufferResized = true;
     }
 
 
@@ -165,11 +186,15 @@ class Kilauea {
     std::vector<VkFramebuffer> swapChainFramebuffers; // handles to the swap chain framebuffers
 
     // per-frame objects
-    uint32_t curFrame = 0; // index of the current frame (used in the following arrays)
     std::vector<VkCommandBuffer> commandBuffers;
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
+
+    // state
+    uint32_t curFrame = 0;           // index of the current frame (used in buffers and semaphores)
+    bool useDynamicStates = true;    // whether to use dynamic states in the pipeline (viewport, scissor)
+    bool framebufferResized = false; // flag to recreate the swap chain after a resize
 
 
     void createSurface() {

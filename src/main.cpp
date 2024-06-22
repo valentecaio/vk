@@ -6,12 +6,20 @@
 
 using namespace vk;
 
+#define RESIZABLE true
 
 class Application {
   public:
     void run() {
       initWindow();
       kilauea = Kilauea(window);
+
+      // resize callback
+      if (RESIZABLE) {
+        glfwSetWindowUserPointer(window, &kilauea);
+        glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
+      }
+
       mainLoop();
       cleanup();
     }
@@ -23,10 +31,11 @@ class Application {
     void initWindow() {
       glfwInit();
       glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // disable openGL context
-      glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);   // disable resizing
+      if (!RESIZABLE)
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
       // 4th argument is monitor (fullscreen), 5th is share (only for openGL)
-      window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+      window = glfwCreateWindow(WIDTH, HEIGHT, "Kiilauea", nullptr, nullptr);
     }
 
     void mainLoop() {

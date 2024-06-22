@@ -42,7 +42,7 @@ void createCommandBuffers(VkDevice device, VkCommandPool commandPool, std::vecto
 
 void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass, VkExtent2D swapChainExtent,
                          std::vector<VkFramebuffer>& swapChainFramebuffers, uint32_t imageIndex,
-                         VkPipeline graphicsPipeline) {
+                         VkPipeline graphicsPipeline, bool useDynamicStates) {
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   beginInfo.pInheritanceInfo = nullptr; // only relevant for secondary command buffers
@@ -67,8 +67,8 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
   renderPassInfo.renderArea.offset = {0, 0};
   renderPassInfo.renderArea.extent = swapChainExtent;
 
-  // clear color is black
-  VkClearValue clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+  // clear color is gray
+  VkClearValue clearColor = {0.1f, 0.1f, 0.1f, 1.0f};
   renderPassInfo.clearValueCount = 1;
   renderPassInfo.pClearValues = &clearColor;
 
@@ -84,19 +84,21 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
 
   // uncomment if viewport and scissor were declared as dynamic states on creation (pipeline.hpp),
   // so they can be changed without recreating the pipeline
-  // VkViewport viewport{};
-  // viewport.x = 0.0f;
-  // viewport.y = 0.0f;
-  // viewport.width  = static_cast<float>(swapChainExtent.width);
-  // viewport.height = static_cast<float>(swapChainExtent.height);
-  // viewport.minDepth = 0.0f;
-  // viewport.maxDepth = 1.0f;
-  // vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  if (useDynamicStates) {
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width  = static_cast<float>(swapChainExtent.width);
+    viewport.height = static_cast<float>(swapChainExtent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-  // VkRect2D scissor{};
-  // scissor.offset = {0, 0};
-  // scissor.extent = swapChainExtent;
-  // vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapChainExtent;
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+  }
 
   // draw a triangle
   vkCmdDraw(commandBuffer, 3, 1, 0, 0);

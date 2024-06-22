@@ -69,19 +69,20 @@ VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& avai
 // choose the swap extent for the swap chain
 // the swap extent is the resolution of the swap chain images
 // glfwGetFramebufferSize is used to get the resolution of the window,
-// but it uses "screen coordinates" which may be different from pixels
-// on some systems, so we need to choose the resolution that best matches the window
+// but on some systems it uses "screen coordinates", which may be different from pixels,
+// so we need to choose the resolution that best matches the window
 VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& capabilities) {
-  if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-    return capabilities.currentExtent;
-  } else {
+  // TODO: why is this not working with the if below?
+  // if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+  //   return capabilities.currentExtent;
+  // } else {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     VkExtent2D actualExtent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
     actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
     actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
     return actualExtent;
-  }
+  // }
 }
 
 // create the swap chain
@@ -89,9 +90,10 @@ VkExtent2D chooseSwapExtent(GLFWwindow* window, const VkSurfaceCapabilitiesKHR& 
 // the images are presented to the screen in the order they were acquired
 // the swap chain is created with a minimum number of images, a format, a resolution, and a presentation mode
 // we return the swap chain, the swap chain images, the format, and the resolution
-void createSwapChain(VkPhysicalDevice physDevice, VkDevice device, VkSurfaceKHR surface, GLFWwindow* window,
-                     VkSwapchainKHR& swapChain, std::vector<VkImage>& swapChainImages,
-                     VkFormat& swapChainImageFormat, VkExtent2D& swapChainExtent) {
+void createSwapChain(VkPhysicalDevice physDevice, VkDevice device, VkSurfaceKHR surface,
+                     GLFWwindow* window, VkSwapchainKHR& swapChain,
+                     std::vector<VkImage>& swapChainImages, VkFormat& swapChainImageFormat,
+                     VkExtent2D& swapChainExtent) {
   SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physDevice, surface);
 
   VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);

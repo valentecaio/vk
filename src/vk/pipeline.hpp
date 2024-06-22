@@ -19,8 +19,9 @@ VkShaderModule createShaderModule(VkDevice device, std::vector<char>& code) {
   return shaderModule;
 }
 
-void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass,
-                            VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline) {
+void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
+                            VkRenderPass renderPass, VkPipelineLayout& pipelineLayout,
+                            VkPipeline& graphicsPipeline, bool useDynamicStates) {
   auto vertShaderCode = readFile("build/vert.spv");
   auto fragShaderCode = readFile("build/frag.spv");
 
@@ -65,50 +66,48 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   // if true, a special index value restarts the assembly of primitives (e.g. a strip)
   inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-  // viewport, region of the framebuffer to render to
-  // the output is stretched to fill the viewport
-  // lets use [0, 0] to [width, height]
-  VkViewport viewport{};
-  viewport.x = 0.0f;
-  viewport.y = 0.0f;
-  viewport.width = (float) swapChainExtent.width;
-  viewport.height = (float) swapChainExtent.height;
-  viewport.minDepth = 0.0f;
-  viewport.maxDepth = 1.0f;
-
-  // scissor, region of the framebuffer to render to
-  // does not change the size of the output like the viewport
-  // instead, it filters out pixels that are outside the scissor
-  VkRect2D scissor{};
-  scissor.offset = {0, 0};
-  scissor.extent = swapChainExtent;
-
+  // viewport and scissor
+  // viewport: region of the framebuffer to render to. The output is stretched to fill the viewport
+  // scissor: pixels outside the scissor rectangle are discarded by the rasterizer
   VkPipelineViewportStateCreateInfo viewportState{};
-  viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  viewportState.viewportCount = 1;
-  viewportState.pViewports = &viewport;
-  viewportState.scissorCount = 1;
-  viewportState.pScissors = &scissor;
-
-  /* uncomment to enable dynamic state
-  // dynamic state (viewport and scissor) can be changed without recreating the pipeline
-  // the configuration of these states is ignored in the pipeline creation
-  // they need to be specified at render time
-  std::vector<VkDynamicState> dynamicStates = {
-    VK_DYNAMIC_STATE_VIEWPORT, // used to change the viewport size
-    VK_DYNAMIC_STATE_SCISSOR   // used to change the scissor rectangle
-  };
   VkPipelineDynamicStateCreateInfo dynamicState{};
-  dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-  dynamicState.pDynamicStates = dynamicStates.data();
+  std::vector<VkDynamicState> dynamicStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+  if (useDynamicStates) {
+    // dynamic state (viewport and scissor) can be changed without recreating the pipeline
+    // the configuration of these states is ignored in the pipeline creation
+    // they need to be specified at render time
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
 
-  // since these are dynamic states, we don't need to specify them here, only the count
-  VkPipelineViewportStateCreateInfo viewportState{};
-  viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  viewportState.viewportCount = 1;
-  viewportState.scissorCount = 1;
-  */
+    // since these are dynamic states, we don't need to specify them here, only the counts
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+  } else {
+    // lets use [0, 0] to [width, height]
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float) swapChainExtent.width;
+    viewport.height = (float) swapChainExtent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    // scissor, region of the framebuffer to render to
+    // does not change the size of the output like the viewport
+    // instead, it filters out pixels that are outside the scissor
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapChainExtent;
+
+    // static states
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+  }
 
   // rasterizer
   VkPipelineRasterizationStateCreateInfo rasterizer{};
@@ -198,12 +197,11 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   pipelineInfo.pMultisampleState = &multisampling;
   pipelineInfo.pDepthStencilState = nullptr;
   pipelineInfo.pColorBlendState = &colorBlending;
-  pipelineInfo.pDynamicState = nullptr; // &dynamicState;
+  pipelineInfo.pDynamicState = useDynamicStates ? &dynamicState : nullptr;
   pipelineInfo.layout = pipelineLayout;
   pipelineInfo.renderPass = renderPass;
   pipelineInfo.subpass = 0;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-  pipelineInfo.basePipelineIndex = -1;
   if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
     throw std::runtime_error("failed to create graphics pipeline!");
   }
