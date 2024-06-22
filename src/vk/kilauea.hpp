@@ -56,81 +56,81 @@ class Kilauea {
       vkDestroyInstance(instance, nullptr);
     }
 
-  void drawFrame() {
-    // wait for the last frame to be finished (the fence is signaled by the present queue)
-    vkWaitForFences(device, 1, &inFlightFences[curFrame], VK_TRUE, UINT64_MAX);
+    void drawFrame() {
+      // wait for the last frame to be finished (the fence is signaled by the present queue)
+      vkWaitForFences(device, 1, &inFlightFences[curFrame], VK_TRUE, UINT64_MAX);
 
-    // acquire an image from the swap chain
-    uint32_t imageIndex;
-    auto result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-      // window was resized
-      recreateSwapChain();
-      return;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-      throw std::runtime_error("failed to acquire swap chain image!");
+      // acquire an image from the swap chain
+      uint32_t imageIndex;
+      auto result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
+      if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // window was resized
+        recreateSwapChain();
+        return;
+      } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("failed to acquire swap chain image!");
+      }
+
+      // now that we have the image, we can reset the fence to block the next frame
+      vkResetFences(device, 1, &inFlightFences[curFrame]);
+
+      // record the command buffer
+      vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
+      recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
+
+      // semaphores used to signal that the image is ready
+      VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
+      VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[curFrame]};
+      VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+      // submit the command buffer
+      VkSubmitInfo submitInfo{};
+      submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+      submitInfo.waitSemaphoreCount = 1;
+      submitInfo.pWaitSemaphores = waitSemaphores;
+      submitInfo.pWaitDstStageMask = waitStages;
+      submitInfo.commandBufferCount = 1;
+      submitInfo.pCommandBuffers = &commandBuffers[curFrame];
+      submitInfo.signalSemaphoreCount = 1;
+      submitInfo.pSignalSemaphores = signalSemaphores;
+      if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[curFrame]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer!");
+      }
+
+      // present the image
+      VkSwapchainKHR swapChains[] = {swapChain};
+      VkPresentInfoKHR presentInfo{};
+      presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+      presentInfo.waitSemaphoreCount = 1;
+      presentInfo.pWaitSemaphores = signalSemaphores;
+      presentInfo.pResults = nullptr; // Optional
+      presentInfo.swapchainCount = 1;
+      presentInfo.pSwapchains = swapChains;
+      presentInfo.pImageIndices = &imageIndex;
+
+      result = vkQueuePresentKHR(presentQueue, &presentInfo);
+      if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        // window was resized
+        recreateSwapChain();
+      } else if (result != VK_SUCCESS) {
+        throw std::runtime_error("failed to present swap chain image!");
+      }
+
+      // advance to the next frame
+      curFrame = (curFrame+1) % MAX_FRAMES_IN_FLIGHT;
     }
 
-    // now that we have the image, we can reset the fence to block the next frame
-    vkResetFences(device, 1, &inFlightFences[curFrame]);
-
-    // record the command buffer
-    vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
-    recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent, swapChainFramebuffers, imageIndex, graphicsPipeline);
-
-    // semaphores used to signal that the image is ready
-    VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
-    VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[curFrame]};
-    VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-
-    // submit the command buffer
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[curFrame];
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-    if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[curFrame]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to submit draw command buffer!");
+    void waitIdle() {
+      vkDeviceWaitIdle(device);
     }
 
-    // present the image
-    VkSwapchainKHR swapChains[] = {swapChain};
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = signalSemaphores;
-    presentInfo.pResults = nullptr; // Optional
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = swapChains;
-    presentInfo.pImageIndices = &imageIndex;
+    void recreateSwapChain() {
+      vkDeviceWaitIdle(device);
 
-    result = vkQueuePresentKHR(presentQueue, &presentInfo);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-      // window was resized
-      recreateSwapChain();
-    } else if (result != VK_SUCCESS) {
-      throw std::runtime_error("failed to present swap chain image!");
+      createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
+      createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
+      createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
     }
-
-    // advance to the next frame
-    curFrame = (curFrame+1) % MAX_FRAMES_IN_FLIGHT;
-  }
-
-  void waitIdle() {
-    vkDeviceWaitIdle(device);
-  }
-
-  void recreateSwapChain() {
-    vkDeviceWaitIdle(device);
-
-    createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
-    createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
-    createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
-  }
 
 
   private:
