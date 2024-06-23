@@ -3,6 +3,7 @@
 #include "../utils/common.hpp"
 #include "../utils/utils.hpp"
 
+#include "buffer.hpp"
 #include "command.hpp"
 #include "debug.hpp"
 #include "device.hpp"
@@ -38,7 +39,7 @@ class Kilauea {
       createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline, useDynamicStates);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
-      createVertexBuffer(device, physicalDevice, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
+      createVertexBuffer(device, physicalDevice, commandPool, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
       createCommandBuffers(device, commandPool, commandBuffers);
       createSyncObjects();
     }
