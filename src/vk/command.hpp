@@ -46,7 +46,8 @@ void createCommandBuffers(VkDevice device, VkCommandPool commandPool, std::vecto
 void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass, VkExtent2D swapChainExtent,
                          std::vector<VkFramebuffer>& swapChainFramebuffers, uint32_t imageIndex,
                          VkPipeline graphicsPipeline, bool useDynamicStates, VkBuffer vertexBuffer,
-                         VkBuffer indexBuffer, uint32_t indexBufferSize) {
+                         VkBuffer indexBuffer, uint32_t indexBufferSize, VkPipelineLayout pipelineLayout,
+                         VkDescriptorSet& descriptorSet) {
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
   beginInfo.pInheritanceInfo = nullptr; // only relevant for secondary command buffers
@@ -112,6 +113,11 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer, VkRenderPass renderPass,
   // bind index buffer (UINT16 or UINT32)
   vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+  // bind the descriptor set
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+  // draw !!
   vkCmdDrawIndexed(commandBuffer, indexBufferSize, 1, 0, 0, 0);
 
   vkCmdEndRenderPass(commandBuffer);

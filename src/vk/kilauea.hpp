@@ -6,6 +6,7 @@
 #include "buffer.hpp"
 #include "command.hpp"
 #include "debug.hpp"
+#include "descriptor.hpp"
 #include "device.hpp"
 #include "framebuffer.hpp"
 #include "instance.hpp"
@@ -28,6 +29,7 @@ class Kilauea {
     Kilauea(GLFWwindow* window, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices)
            : window(window), vertices(vertices), indices(indices) {};
 
+
     void init() {
       createInstance(instance, debugMsgr);
       setupDebugMessenger(instance, debugMsgr);
@@ -37,11 +39,15 @@ class Kilauea {
       createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
       createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
       createRenderPass(device, swapChainImageFormat, renderPass);
-      createGraphicsPipeline(device, swapChainExtent, renderPass, pipelineLayout, graphicsPipeline, useDynamicStates);
+      createDescriptorSetLayout(device, descriptorSetLayout);
+      createGraphicsPipeline(device, swapChainExtent, renderPass, useDynamicStates, descriptorSetLayout, pipelineLayout, graphicsPipeline);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
       createVertexBuffer(device, physicalDevice, commandPool, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
       createIndexBuffer(device, physicalDevice, commandPool, graphicsQueue, indices, indexBuffer, indexBufferMemory);
+      createUniformBuffers(device, physicalDevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
+      createDescriptorPool(device, descriptorPool);
+      createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, descriptorSets);
       createCommandBuffers(device, commandPool, commandBuffers);
       createSyncObjects();
     }
@@ -49,16 +55,26 @@ class Kilauea {
     void cleanup() {
       cleanupSwapChain();
 
+      // uniform buffers and descriptor sets
+      for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkDestroyBuffer(device, uniformBuffers[i], nullptr);
+        vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+      }
+      vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+      vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+
+      // graphics pipeline
       vkDestroyPipeline(device, graphicsPipeline, nullptr);
       vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
       vkDestroyRenderPass(device, renderPass, nullptr);
 
+      // vertex and index buffers
       vkDestroyBuffer(device, vertexBuffer, nullptr);
       vkFreeMemory(device, vertexBufferMemory, nullptr);
-
       vkDestroyBuffer(device, indexBuffer, nullptr);
       vkFreeMemory(device, indexBufferMemory, nullptr);
 
+      // semaphores and fences
       for (size_t i=0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
@@ -93,12 +109,15 @@ class Kilauea {
       // now that we have the image, we can reset the fence to block the next frame
       vkResetFences(device, 1, &inFlightFences[curFrame]);
 
+      // update the uniform buffer
+      updateUniformBuffer();
+
       // record the command buffer
       vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
       recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent,
                           swapChainFramebuffers, imageIndex, graphicsPipeline,
                           useDynamicStates, vertexBuffer, indexBuffer,
-                          (uint32_t)indices.size());
+                          (uint32_t)indices.size(), pipelineLayout, descriptorSets[curFrame]);
 
       // semaphores used to signal that the image is ready
       VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
@@ -174,8 +193,33 @@ class Kilauea {
       kilauea->framebufferResized = true;
     }
 
+  void updateUniformBuffer() {
+    // used to spin the scene
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+    // update the uniform buffer
+    UniformBufferObject ubo{};
+    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                           glm::vec3(0.0f, 0.0f, 0.0f),
+                           glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f),
+                                swapChainExtent.width / (float) swapChainExtent.height,
+                                0.1f, 10.0f);
+
+    // the Y coordinate of the clip coordinates is inverted in Vulkan (contrary to OpenGL)
+    ubo.proj[1][1] *= -1;
+
+    // copy the updated data to the mapped memory (visible to the GPU)
+    memcpy(uniformBuffersMapped[curFrame], &ubo, sizeof(ubo));
+  }
+
+
+
   private:
-    GLFWwindow* window;  // window handle
+    GLFWwindow* window;
 
     // vulkan
     VkInstance instance;                // connection between application and vulkan library
@@ -192,9 +236,9 @@ class Kilauea {
 
     // graphics pipeline
     VkPipeline graphicsPipeline;      // handle to the graphics pipeline
-    VkPipelineLayout pipelineLayout;  // uniform values for shaders
     VkRenderPass renderPass;          // render pass, collection of attachments, subpasses, and dependencies
-    
+    VkPipelineLayout pipelineLayout;  // uniform values for shaders
+
     // swap chain
     VkSwapchainKHR swapChain;         // handle to the swap chain
     VkFormat swapChainImageFormat;    // format of the swap chain images
@@ -206,10 +250,18 @@ class Kilauea {
     std::vector<VkFramebuffer> swapChainFramebuffers; // handles to the swap chain framebuffers
 
     // per-frame objects
-    std::vector<VkCommandBuffer> commandBuffers;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    std::vector<VkFence> inFlightFences;
+    std::vector<VkCommandBuffer> commandBuffers;       // submit commands to the GPU
+    std::vector<VkSemaphore> imageAvailableSemaphores; // signal that an image is available
+    std::vector<VkSemaphore> renderFinishedSemaphores; // signal that rendering has finished
+    std::vector<VkFence> inFlightFences;               // block the next frame until the current one is finished
+
+    // uniform buffer
+    VkDescriptorPool descriptorPool;                   // pool for submitting descriptor sets (uniform buffers)
+    VkDescriptorSetLayout descriptorSetLayout;         // describe the layout of a descriptor set
+    std::vector<VkDescriptorSet> descriptorSets;       // descriptor sets for the uniform buffers
+    std::vector<VkBuffer> uniformBuffers;              // uniform buffers
+    std::vector<VkDeviceMemory> uniformBuffersMemory;  // memory for the uniform buffers
+    std::vector<void*> uniformBuffersMapped;           // pointer to the mapped uniform buffers
 
     // vertex buffer
     std::vector<Vertex> vertices;

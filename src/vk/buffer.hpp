@@ -6,6 +6,14 @@
 namespace vk {
 
 
+// more about alignas at https://docs.vulkan.org/tutorial/latest/05_Uniform_buffers/01_Descriptor_pool_and_sets.html#_alignment_requirements
+struct UniformBufferObject {
+  alignas(16) glm::mat4 model;
+  alignas(16) glm::mat4 view;
+  alignas(16) glm::mat4 proj;
+};
+
+
 uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter,
                         VkMemoryPropertyFlags properties) {
   VkPhysicalDeviceMemoryProperties memProperties;
@@ -156,6 +164,28 @@ void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkComma
   // cleanup of temporary buffer
   vkDestroyBuffer(device, stagingBuffer, nullptr);
   vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+
+// create uniform buffers for each frame in CPU visible memory
+void createUniformBuffers(VkDevice device, VkPhysicalDevice physicalDevice,
+                          std::vector<VkBuffer>& uniformBuffers,
+                          std::vector<VkDeviceMemory>& uniformBuffersMemory,
+                          std::vector<void*>& uniformBuffersMapped) {
+
+  VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+  uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+  uniformBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+  uniformBuffersMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+  for (size_t i=0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+    createBuffer(device, physicalDevice, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 uniformBuffers[i], uniformBuffersMemory[i]);
+
+    // persistent mapping: map the buffers once and keep them mapped during app lifetime
+    vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
+  }
 }
 
 } // namespace vk

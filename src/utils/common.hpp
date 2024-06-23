@@ -8,7 +8,13 @@
 // glm
 // openGL uses [-1, 1] for depth, vulkan uses [0, 1]
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-
+// force GLM to use aligned types in structs
+// https://docs.vulkan.org/tutorial/latest/05_Uniform_buffers/01_Descriptor_pool_and_sets.html#_alignment_requirements
+#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
+// the lib is at lib/glm-1.0.1/
+#include <glm.hpp>
+// glm::translate, glm::rotate, glm::scale
+#include <gtc/matrix_transform.hpp>
 
 // standard
 #include <iostream>  // std::cerr, std::endl
@@ -22,8 +28,8 @@
 #include <vector>
 #include <set>
 #include <optional>
-#include <glm.hpp>   // lib/glm-1.0.1/
 #include <array>
+#include <chrono>
 
 
 namespace vk {
@@ -31,6 +37,7 @@ namespace vk {
 // constants
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
+
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 }

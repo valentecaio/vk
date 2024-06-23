@@ -20,13 +20,13 @@ VkShaderModule createShaderModule(VkDevice device, std::vector<char>& code) {
   return shaderModule;
 }
 
-void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
-                            VkRenderPass renderPass, VkPipelineLayout& pipelineLayout,
-                            VkPipeline& graphicsPipeline, bool useDynamicStates) {
+void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRenderPass renderPass,
+                            bool useDynamicStates, VkDescriptorSetLayout descriptorSetLayout,
+                            VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline) {
+
+  // create temporary shader modules
   auto vertShaderCode = readFile("build/vert.spv");
   auto fragShaderCode = readFile("build/frag.spv");
-
-  // create shader modules
   VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
   VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
 
@@ -47,10 +47,9 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
   // save the shader stages
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-  // vertex shader input: none for now
+  // vertex shader input
   auto bindingDescription = Vertex::getBindingDescription();
   auto attributeDescriptions = Vertex::getAttributeDescriptions();
-
   VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
   vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
   vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -116,25 +115,34 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
   // rasterizer
   VkPipelineRasterizationStateCreateInfo rasterizer{};
   rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
   // if true, fragments beyond near and far planes are clamped to them
   // this is used in shadow maps, but requires enabling a GPU feature
   rasterizer.depthClampEnable = VK_FALSE;
+
   // if true, geometry never passes through the rasterizer stage
   rasterizer.rasterizerDiscardEnable = VK_FALSE;
+
   // to use a different polygon mode, we need to enable the feature in the logical device
   // fill: fill the area of the polygon with fragments (default)
   // line: polygon edges are drawn as lines (wireframe)
   // point: polygon vertices are drawn as points (useful for debugging)
   rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+
   // line width > 1.0f requires enabling the wideLines GPU feature
   rasterizer.lineWidth = 1.0f;
+
   // frontFace: vertex order for faces to be considered front-facing
-  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  // counter-clockwise order for the vertices because of the default depth buffer
+  rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
   // cull mode, used to discard triangles:
   // back: cull the back faces (default)
   // front: cull the front faces (useful for shadow volumes)
   // front_and_back: cull all faces
+  // none: render all faces (useful for debug)
   rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  
   // disable depth bias (used for shadow mapping)
   rasterizer.depthBiasEnable = VK_FALSE;
   rasterizer.depthBiasConstantFactor = 0.0f;
@@ -180,11 +188,10 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
   // and can be changed at drawing time without recreating the pipeline
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 0;
-  pipelineLayoutInfo.pSetLayouts = nullptr;
-  // push constants are another way of passing dynamic values to shaders
+  pipelineLayoutInfo.setLayoutCount = 1;
+  pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // descriptor set layout for uniform values
   pipelineLayoutInfo.pushConstantRangeCount = 0;
-  pipelineLayoutInfo.pPushConstantRanges = nullptr;
+  pipelineLayoutInfo.pPushConstantRanges = nullptr; // another way of passing dynamic values to shaders
   if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
@@ -210,7 +217,7 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent,
     throw std::runtime_error("failed to create graphics pipeline!");
   }
 
-  // we don't need the shader modules after the pipeline creation
+  // cleanup: we don't need the shader modules after the pipeline creation
   vkDestroyShaderModule(device, fragShaderModule, nullptr);
   vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
