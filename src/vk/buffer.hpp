@@ -18,6 +18,7 @@ uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter,
 }
 
 
+// create a buffer with a given memory property
 void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize size,
                   VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer,
                   VkDeviceMemory& bufferMemory) {
@@ -26,7 +27,6 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
   bufferInfo.size = size;
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
   if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
     throw std::runtime_error("failed to create buffer!");
   }
@@ -38,7 +38,6 @@ void createBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkDeviceSize
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
-
   if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
     throw std::runtime_error("failed to allocate buffer memory!");
   }
@@ -87,6 +86,7 @@ void copyBuffer(VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueu
 }
 
 
+// create a vertex buffer in device local memory
 void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool,
                         VkQueue graphicsQueue, const std::vector<Vertex>& vertices,
                         VkBuffer& vertexBuffer, VkDeviceMemory& vertexBufferMemory) {
@@ -115,6 +115,43 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkComm
 
   // copy the staging buffer to the vertex buffer
   copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, vertexBuffer, bufferSize);
+
+  // cleanup of temporary buffer
+  vkDestroyBuffer(device, stagingBuffer, nullptr);
+  vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+
+// create an index buffer in device local memory
+void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool,
+                       VkQueue graphicsQueue, const std::vector<uint16_t>& indices,
+                       VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory) {
+
+  VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+  // create a temporary buffer in a memory that is accessible by both CPU and GPU
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingBufferMemory;
+  createBuffer(device, physicalDevice, bufferSize,
+               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,     // buffer is used as the source in a memory transfer operation
+               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | // memory is mappable by the host
+               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, // memory is coherent, meaning that writes are visible to the device
+               stagingBuffer, stagingBufferMemory);
+
+  // map memory in the CPU to the staging buffer, copy indices into it, unmap
+  void* data;
+  vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+  memcpy(data, indices.data(), (size_t) bufferSize);
+  vkUnmapMemory(device, stagingBufferMemory);
+
+  // create the final index buffer in device local memory (not accessible by CPU)
+  createBuffer(device, physicalDevice, bufferSize,
+               VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, // local device memory
+               indexBuffer, indexBufferMemory);
+
+  // copy the staging buffer to the index buffer
+  copyBuffer(device, commandPool, graphicsQueue, stagingBuffer, indexBuffer, bufferSize);
 
   // cleanup of temporary buffer
   vkDestroyBuffer(device, stagingBuffer, nullptr);

@@ -25,7 +25,8 @@ class Kilauea {
     // constructors
     Kilauea() = default;
     Kilauea(GLFWwindow* window) : window(window) {};
-    Kilauea(GLFWwindow* window, std::vector<Vertex>& vertices) : window(window), vertices(vertices) {};
+    Kilauea(GLFWwindow* window, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices)
+           : window(window), vertices(vertices), indices(indices) {};
 
     void init() {
       createInstance(instance, debugMsgr);
@@ -40,25 +41,35 @@ class Kilauea {
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
       createVertexBuffer(device, physicalDevice, commandPool, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
+      createIndexBuffer(device, physicalDevice, commandPool, graphicsQueue, indices, indexBuffer, indexBufferMemory);
       createCommandBuffers(device, commandPool, commandBuffers);
       createSyncObjects();
     }
 
     void cleanup() {
       cleanupSwapChain();
+
       vkDestroyPipeline(device, graphicsPipeline, nullptr);
       vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
       vkDestroyRenderPass(device, renderPass, nullptr);
+
       vkDestroyBuffer(device, vertexBuffer, nullptr);
       vkFreeMemory(device, vertexBufferMemory, nullptr);
+
+      vkDestroyBuffer(device, indexBuffer, nullptr);
+      vkFreeMemory(device, indexBufferMemory, nullptr);
+
       for (size_t i=0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
         vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
         vkDestroyFence(device, inFlightFences[i], nullptr);
       }
+
       vkDestroyCommandPool(device, commandPool, nullptr);
       vkDestroyDevice(device, nullptr);
+
       destroyDebugUtilsMessengerEXT(instance, debugMsgr, nullptr);
+
       vkDestroySurfaceKHR(instance, surface, nullptr);
       vkDestroyInstance(instance, nullptr);
     }
@@ -70,7 +81,7 @@ class Kilauea {
       // acquire an image from the swap chain
       uint32_t imageIndex;
       auto result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[curFrame], VK_NULL_HANDLE, &imageIndex);
-      if (/*framebufferResized || */result == VK_ERROR_OUT_OF_DATE_KHR) {
+      if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // window was resized
         framebufferResized = false;
         recreateSwapChain();
@@ -86,7 +97,8 @@ class Kilauea {
       vkResetCommandBuffer(commandBuffers[curFrame], 0); // 0 flags
       recordCommandBuffer(commandBuffers[curFrame], renderPass, swapChainExtent,
                           swapChainFramebuffers, imageIndex, graphicsPipeline,
-                          useDynamicStates, vertexBuffer, vertices);
+                          useDynamicStates, vertexBuffer, indexBuffer,
+                          (uint32_t)indices.size());
 
       // semaphores used to signal that the image is ready
       VkSemaphore waitSemaphores[]   = {imageAvailableSemaphores[curFrame]};
@@ -200,14 +212,19 @@ class Kilauea {
     std::vector<VkFence> inFlightFences;
 
     // vertex buffer
-    VkBuffer vertexBuffer;              // handle to the vertex buffer
-    VkDeviceMemory vertexBufferMemory;  // handle to the vertex buffer memory
+    std::vector<Vertex> vertices;
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+
+    // index buffer
+    std::vector<uint16_t> indices;
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
 
     // state
     uint32_t curFrame = 0;           // index of the current frame (used in buffers and semaphores)
     bool useDynamicStates = true;    // whether to use dynamic states in the pipeline (viewport, scissor)
     bool framebufferResized = false; // flag to recreate the swap chain after a resize
-    std::vector<Vertex> vertices;
 
 
 
