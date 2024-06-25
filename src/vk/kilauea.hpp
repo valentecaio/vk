@@ -9,6 +9,7 @@
 #include "descriptor.hpp"
 #include "device.hpp"
 #include "framebuffer.hpp"
+#include "image.hpp"
 #include "instance.hpp"
 #include "physical_device.hpp"
 #include "pipeline.hpp"
@@ -43,6 +44,7 @@ class Kilauea {
       createGraphicsPipeline(device, swapChainExtent, renderPass, useDynamicStates, descriptorSetLayout, pipelineLayout, graphicsPipeline);
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
+      createTextureImage(device, physicalDevice, commandPool, graphicsQueue, textureImage, textureImageMemory);
       createVertexBuffer(device, physicalDevice, commandPool, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
       createIndexBuffer(device, physicalDevice, commandPool, graphicsQueue, indices, indexBuffer, indexBufferMemory);
       createUniformBuffers(device, physicalDevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
@@ -54,6 +56,10 @@ class Kilauea {
 
     void cleanup() {
       cleanupSwapChain();
+
+      // texture
+      vkDestroyImage(device, textureImage, nullptr);
+      vkFreeMemory(device, textureImageMemory, nullptr);
 
       // uniform buffers and descriptor sets
       for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -166,56 +172,12 @@ class Kilauea {
       vkDeviceWaitIdle(device);
     }
 
-    void recreateSwapChain() {
-      // TODO: code below never happens, window size is always at least 1
-      // pause the application until the window is shown again (minimized window)
-      int width = 0, height = 0;
-      glfwGetFramebufferSize(window, &width, &height);
-      while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
-        glfwWaitEvents();
-      }
-
-      // wait for the frame to be finished before recreating the swap chain
-      vkDeviceWaitIdle(device);
-
-      // recreate the swap chain
-      cleanupSwapChain();
-      createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
-      createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
-      createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
-    }
-
     // change the flag and wait for the current frame to be finished before resizing
     // static because GLFW does not know how to properly call a member function with the right this pointer
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
       auto kilauea = reinterpret_cast<Kilauea*>(glfwGetWindowUserPointer(window));
       kilauea->framebufferResized = true;
     }
-
-  void updateUniformBuffer() {
-    // used to spin the scene
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    // update the uniform buffer
-    UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
-                           glm::vec3(0.0f, 0.0f, 0.0f),
-                           glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f),
-                                swapChainExtent.width / (float) swapChainExtent.height,
-                                0.1f, 10.0f);
-
-    // the Y coordinate of the clip coordinates is inverted in Vulkan (contrary to OpenGL)
-    ubo.proj[1][1] *= -1;
-
-    // copy the updated data to the mapped memory (visible to the GPU)
-    memcpy(uniformBuffersMapped[curFrame], &ubo, sizeof(ubo));
-  }
-
 
 
   private:
@@ -273,6 +235,10 @@ class Kilauea {
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
 
+    // texture
+    VkImage textureImage;
+    VkDeviceMemory textureImageMemory;
+
     // state
     uint32_t curFrame = 0;           // index of the current frame (used in buffers and semaphores)
     bool useDynamicStates = true;    // whether to use dynamic states in the pipeline (viewport, scissor)
@@ -316,6 +282,50 @@ class Kilauea {
       }
       vkDestroySwapchainKHR(device, swapChain, nullptr);
     }
+
+    void recreateSwapChain() {
+      // TODO: code below never happens, window size is always at least 1
+      // pause the application until the window is shown again (minimized window)
+      int width = 0, height = 0;
+      glfwGetFramebufferSize(window, &width, &height);
+      while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(window, &width, &height);
+        glfwWaitEvents();
+      }
+
+      // wait for the frame to be finished before recreating the swap chain
+      vkDeviceWaitIdle(device);
+
+      // recreate the swap chain
+      cleanupSwapChain();
+      createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
+      createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
+      createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
+    }
+
+    void updateUniformBuffer() {
+      // used to spin the scene
+      static auto startTime = std::chrono::high_resolution_clock::now();
+      auto currentTime = std::chrono::high_resolution_clock::now();
+      float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+      // update the uniform buffer
+      UniformBufferObject ubo{};
+      ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+      ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                            glm::vec3(0.0f, 0.0f, 0.0f),
+                            glm::vec3(0.0f, 0.0f, 1.0f));
+
+      float aspect = swapChainExtent.width / (float) swapChainExtent.height;
+      ubo.proj = glm::perspective(glm::radians(20.0f), aspect, 0.1f, 10.0f);
+
+      // the Y coordinate of the clip coordinates is inverted in Vulkan (contrary to OpenGL)
+      ubo.proj[1][1] *= -1;
+
+      // copy the updated data to the mapped memory (visible to the GPU)
+      memcpy(uniformBuffersMapped[curFrame], &ubo, sizeof(ubo));
+    }
+
 
 };
 

@@ -46,7 +46,7 @@ class Application {
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
       // 4th argument is monitor (fullscreen), 5th is share (only for openGL)
-      window = glfwCreateWindow(WIDTH, HEIGHT, "Kiilauea", nullptr, nullptr);
+      window = glfwCreateWindow(WIDTH, HEIGHT, "Kilauea", nullptr, nullptr);
     }
 
     void mainLoop() {
