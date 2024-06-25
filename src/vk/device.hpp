@@ -13,7 +13,7 @@ void createLogicalDevice(VkPhysicalDevice physDevice, VkDevice& device,
   // contains a bool for every feature in Vulkan
   // enable the desired features here
   VkPhysicalDeviceFeatures deviceFeatures{};
-  // deviceFeatures.samplerAnisotropy = VK_TRUE;
+  deviceFeatures.samplerAnisotropy = VK_TRUE; // enable anisotropic filtering
 
   // create queues for each queue family in indices
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;

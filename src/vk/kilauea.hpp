@@ -9,13 +9,13 @@
 #include "descriptor.hpp"
 #include "device.hpp"
 #include "framebuffer.hpp"
-#include "image.hpp"
 #include "instance.hpp"
 #include "physical_device.hpp"
 #include "pipeline.hpp"
 #include "queue_family.hpp"
 #include "render_pass.hpp"
 #include "swap_chain.hpp"
+#include "texture.hpp"
 #include "vertex.hpp"
 
 
@@ -45,19 +45,24 @@ class Kilauea {
       createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
       createTextureImage(device, physicalDevice, commandPool, graphicsQueue, textureImage, textureImageMemory);
+      createTextureImageView(device, textureImage, textureImageView);
+      createTextureSampler(device, physicalDevice, textureSampler);
       createVertexBuffer(device, physicalDevice, commandPool, graphicsQueue, vertices, vertexBuffer, vertexBufferMemory);
       createIndexBuffer(device, physicalDevice, commandPool, graphicsQueue, indices, indexBuffer, indexBufferMemory);
       createUniformBuffers(device, physicalDevice, uniformBuffers, uniformBuffersMemory, uniformBuffersMapped);
       createDescriptorPool(device, descriptorPool);
-      createDescriptorSets(device, descriptorPool, descriptorSetLayout, uniformBuffers, descriptorSets);
+      createDescriptorSets(device, descriptorPool, descriptorSetLayout, textureImageView, textureSampler, uniformBuffers, descriptorSets);
       createCommandBuffers(device, commandPool, commandBuffers);
       createSyncObjects();
     }
+
 
     void cleanup() {
       cleanupSwapChain();
 
       // texture
+      vkDestroySampler(device, textureSampler, nullptr);
+      vkDestroyImageView(device, textureImageView, nullptr);
       vkDestroyImage(device, textureImage, nullptr);
       vkFreeMemory(device, textureImageMemory, nullptr);
 
@@ -236,8 +241,10 @@ class Kilauea {
     VkDeviceMemory indexBufferMemory;
 
     // texture
-    VkImage textureImage;
-    VkDeviceMemory textureImageMemory;
+    VkImage textureImage;              // handle to the texture image
+    VkDeviceMemory textureImageMemory; // memory for the texture image
+    VkImageView textureImageView;      // handle to the texture image view
+    VkSampler textureSampler;          // handle to the texture sampler
 
     // state
     uint32_t curFrame = 0;           // index of the current frame (used in buffers and semaphores)
