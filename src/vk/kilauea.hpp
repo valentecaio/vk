@@ -6,6 +6,7 @@
 #include "buffer.hpp"
 #include "command.hpp"
 #include "debug.hpp"
+#include "depth.hpp"
 #include "descriptor.hpp"
 #include "device.hpp"
 #include "framebuffer.hpp"
@@ -32,18 +33,19 @@ class Kilauea {
 
 
     void init() {
-      createInstance(instance, debugMsgr);
+      createInstance(instance);
       setupDebugMessenger(instance, debugMsgr);
-      createSurface();
+      createSurface(instance, surface);
       pickPhysicalDevice(instance, surface, physicalDevice, queueFamilies);
       createLogicalDevice(physicalDevice, device, queueFamilies, &graphicsQueue, &presentQueue);
       createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
       createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
-      createRenderPass(device, swapChainImageFormat, renderPass);
+      createRenderPass(device, swapChainImageFormat, findDepthFormat(physicalDevice), renderPass);
       createDescriptorSetLayout(device, descriptorSetLayout);
       createGraphicsPipeline(device, swapChainExtent, renderPass, useDynamicStates, descriptorSetLayout, pipelineLayout, graphicsPipeline);
-      createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
       createCommandPool(device, physicalDevice, surface, queueFamilies, commandPool);
+      createDepthResources(device, physicalDevice, swapChainExtent, depthImage, depthImageMemory, depthImageView);
+      createFramebuffers(device, swapChainExtent, renderPass, swapChainImageViews, depthImageView, swapChainFramebuffers);
       createTextureImage(device, physicalDevice, commandPool, graphicsQueue, textureImage, textureImageMemory);
       createTextureImageView(device, textureImage, textureImageView);
       createTextureSampler(device, physicalDevice, textureSampler);
@@ -240,6 +242,11 @@ class Kilauea {
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
 
+    // depth buffer
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
+
     // texture
     VkImage textureImage;              // handle to the texture image
     VkDeviceMemory textureImageMemory; // memory for the texture image
@@ -253,7 +260,7 @@ class Kilauea {
 
 
 
-    void createSurface() {
+    void createSurface(VkInstance instance, VkSurfaceKHR& surface) {
       if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
       }
@@ -281,6 +288,11 @@ class Kilauea {
     }
 
     void cleanupSwapChain() {
+      // depth buffer
+      vkDestroyImageView(device, depthImageView, nullptr);
+      vkDestroyImage(device, depthImage, nullptr);
+      vkFreeMemory(device, depthImageMemory, nullptr);
+
       for (auto framebuffer : swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
       }
@@ -307,8 +319,10 @@ class Kilauea {
       cleanupSwapChain();
       createSwapChain(physicalDevice, device, surface, window, swapChain, swapChainImages, swapChainImageFormat, swapChainExtent);
       createImageViews(device, swapChainImages, swapChainImageFormat, swapChainImageViews);
-      createFramebuffers(device, swapChainImageViews, swapChainFramebuffers, swapChainExtent, renderPass);
+      createDepthResources(device, physicalDevice, swapChainExtent, depthImage, depthImageMemory, depthImageView);
+      createFramebuffers(device, swapChainExtent, renderPass, swapChainImageViews, depthImageView, swapChainFramebuffers);
     }
+
 
     void updateUniformBuffer() {
       // used to spin the scene

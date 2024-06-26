@@ -5,10 +5,10 @@
 
 namespace vk {
 
-  void createImage(VkDevice device, VkPhysicalDevice physicalDevice, VkImage& textureImage,
-                   VkDeviceMemory& textureImageMemory, uint32_t width, uint32_t height,
-                   VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-                   VkMemoryPropertyFlags properties) {
+  void createImage(VkDevice device, VkPhysicalDevice physicalDevice,
+                   uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+                   VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+                   VkImage& image, VkDeviceMemory& imageMemory) {
 
     // create image
     VkImageCreateInfo imageInfo{};
@@ -38,21 +38,21 @@ namespace vk {
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.flags = 0;
 
-    if (vkCreateImage(device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
+    if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS) {
       throw std::runtime_error("failed to create image!");
     }
 
     // allocate and bind memory for the image
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(device, textureImage, &memRequirements);
+    vkGetImageMemoryRequirements(device, image, &memRequirements);
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(physicalDevice, memRequirements.memoryTypeBits, properties);
-    if (vkAllocateMemory(device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
       throw std::runtime_error("failed to allocate image memory!");
     }
-    vkBindImageMemory(device, textureImage, textureImageMemory, 0);
+    vkBindImageMemory(device, image, imageMemory, 0);
   }
 
 
@@ -145,10 +145,11 @@ namespace vk {
     vkUnmapMemory(device, stagingBufferMemory);
 
     // create image
-    createImage(device, physicalDevice, textureImage, textureImageMemory,
-                texWidth, texHeight, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
+    createImage(device, physicalDevice, texWidth, texHeight,
+                VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                textureImage, textureImageMemory);
 
     // copy the staging buffer to the texture image
     transitionImageLayout(device, commandPool, graphicsQueue, textureImage,
@@ -167,13 +168,13 @@ namespace vk {
   }
 
 
-  VkImageView createImageView(VkDevice device, VkImage image, VkFormat format) {
+  VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     viewInfo.image = image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = format;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.aspectMask = aspectFlags;
     viewInfo.subresourceRange.baseMipLevel = 0;
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
@@ -189,7 +190,7 @@ namespace vk {
 
 
   void createTextureImageView(VkDevice device, VkImage textureImage, VkImageView& textureImageView) {
-    textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+    textureImageView = createImageView(device, textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
   }
 
 

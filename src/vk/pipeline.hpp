@@ -149,6 +149,15 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   rasterizer.depthBiasClamp = 0.0f;
   rasterizer.depthBiasSlopeFactor = 0.0f;
 
+  // depth and stencil testing
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthWriteEnable = VK_TRUE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+
   // multisampling - combine the fragment shader results of multiple polygons (anti-aliasing).
   // better than super-sampling, because it doesn't need to run the fragment shader multiple
   // times if only one polygon covers a pixel
@@ -167,12 +176,6 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   VkPipelineColorBlendAttachmentState colorBlendAttachment{};
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   colorBlendAttachment.blendEnable = VK_FALSE;
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
   VkPipelineColorBlendStateCreateInfo colorBlending{};
   colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   colorBlending.logicOpEnable = VK_FALSE;
@@ -206,7 +209,7 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   pipelineInfo.pViewportState = &viewportState;
   pipelineInfo.pRasterizationState = &rasterizer;
   pipelineInfo.pMultisampleState = &multisampling;
-  pipelineInfo.pDepthStencilState = nullptr;
+  pipelineInfo.pDepthStencilState = &depthStencil;
   pipelineInfo.pColorBlendState = &colorBlending;
   pipelineInfo.pDynamicState = useDynamicStates ? &dynamicState : nullptr;
   pipelineInfo.layout = pipelineLayout;

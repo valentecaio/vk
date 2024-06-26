@@ -61,7 +61,7 @@ void listExtensions() {
   }
 }
 
-void createInstance(VkInstance& instance, VkDebugUtilsMessengerEXT& debugMsgr) {
+void createInstance(VkInstance& instance) {
   // optional information used for optimization
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
