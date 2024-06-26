@@ -11,6 +11,7 @@
 #include "device.hpp"
 #include "framebuffer.hpp"
 #include "instance.hpp"
+#include "model.hpp"
 #include "physical_device.hpp"
 #include "pipeline.hpp"
 #include "queue_family.hpp"
@@ -28,11 +29,10 @@ class Kilauea {
     // constructors
     Kilauea() = default;
     Kilauea(GLFWwindow* window) : window(window) {};
-    Kilauea(GLFWwindow* window, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices)
-           : window(window), vertices(vertices), indices(indices) {};
 
 
     void init() {
+      loadModel(vertices, indices);
       createInstance(instance);
       setupDebugMessenger(instance, debugMsgr);
       createSurface(instance, surface);
@@ -238,7 +238,7 @@ class Kilauea {
     VkDeviceMemory vertexBufferMemory;
 
     // index buffer
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
 
@@ -332,13 +332,13 @@ class Kilauea {
 
       // update the uniform buffer
       UniformBufferObject ubo{};
-      ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+      ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(40.0f), glm::vec3(0.0f, 0.0f, 1.0f));
       ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
                             glm::vec3(0.0f, 0.0f, 0.0f),
                             glm::vec3(0.0f, 0.0f, 1.0f));
 
       float aspect = swapChainExtent.width / (float) swapChainExtent.height;
-      ubo.proj = glm::perspective(glm::radians(20.0f), aspect, 0.1f, 10.0f);
+      ubo.proj = glm::perspective(glm::radians(40.0f), aspect, 0.1f, 10.0f);
 
       // the Y coordinate of the clip coordinates is inverted in Vulkan (contrary to OpenGL)
       ubo.proj[1][1] *= -1;

@@ -149,7 +149,7 @@ void createVertexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkComm
 
 // create an index buffer in device local memory
 void createIndexBuffer(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool,
-                       VkQueue graphicsQueue, const std::vector<uint16_t>& indices,
+                       VkQueue graphicsQueue, const std::vector<uint32_t>& indices,
                        VkBuffer& indexBuffer, VkDeviceMemory& indexBufferMemory) {
 
   VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();

@@ -141,7 +141,7 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
   // front: cull the front faces (useful for shadow volumes)
   // front_and_back: cull all faces
   // none: render all faces (useful for debug)
-  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterizer.cullMode = VK_CULL_MODE_NONE;
   
   // disable depth bias (used for shadow mapping)
   rasterizer.depthBiasEnable = VK_FALSE;

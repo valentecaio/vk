@@ -43,6 +43,22 @@ struct Vertex {
 
     return attributeDescriptions;
   }
+
+  // for std::unordered_map
+  bool operator==(const Vertex& other) const {
+    return pos == other.pos && color == other.color && texCoord == other.texCoord;
+  }
+
 };
 
 } // namespace vk
+
+
+// for std::unordered_map
+namespace std {
+  template<> struct hash<vk::Vertex> {
+    size_t operator()(vk::Vertex const& vertex) const {
+      return ((hash<glm::vec3>()(vertex.pos) ^ (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^ (hash<glm::vec2>()(vertex.texCoord) << 1);
+    }
+  };
+}
