@@ -25,8 +25,8 @@ void createGraphicsPipeline(VkDevice device, VkExtent2D swapChainExtent, VkRende
                             VkPipelineLayout& pipelineLayout, VkPipeline& graphicsPipeline) {
 
   // create temporary shader modules
-  auto vertShaderCode = readFile("build/vert.spv");
-  auto fragShaderCode = readFile("build/frag.spv");
+  auto vertShaderCode = readFile("build/shader.vert.spv");
+  auto fragShaderCode = readFile("build/shader.frag.spv");
   VkShaderModule vertShaderModule = createShaderModule(device, vertShaderCode);
   VkShaderModule fragShaderModule = createShaderModule(device, fragShaderCode);
 
