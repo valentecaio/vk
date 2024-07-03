@@ -5,47 +5,40 @@
 #include "vk/kilauea.hpp"
 #include "vk/vertex.hpp"
 
-#include "shadow_mapping.hpp"
-
 using namespace vk;
-
-#define RESIZABLE true
 
 class Application {
   public:
     void run() {
       initWindow();
 
-      // kilauea = Kilauea(window);
-      // kilauea.init();
-
-      shadowMapping = ShadowMapping(window);
-      shadowMapping.init();
+      kilauea = Kilauea(window);
+      kilauea.init();
 
       // resize callback
-      if (RESIZABLE) {
-        glfwSetWindowUserPointer(window, &kilauea);
-        // glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
-        // glfwSetFramebufferSizeCallback(window, ShadowMapping::framebufferResizeCallback);1
-      }
+      glfwSetWindowUserPointer(window, &kilauea);
+      glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
 
-      shadowMapping.mainLoop();
+      mainLoop();
       cleanup();
     }
 
   private:
     GLFWwindow* window;  // window handle
     Kilauea kilauea;     // vulkan handle
-    ShadowMapping shadowMapping;
 
     void initWindow() {
       glfwInit();
       glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // disable openGL context
-      if (!RESIZABLE)
-        glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-      // 4th argument is monitor (fullscreen), 5th is share (only for openGL)
       window = glfwCreateWindow(WIDTH, HEIGHT, "Kilauea", nullptr, nullptr);
+    }
+
+    void mainLoop() {
+      while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        kilauea.drawFrame();
+      }
+      kilauea.waitIdle();
     }
 
     void cleanup() {

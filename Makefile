@@ -21,57 +21,63 @@ CFLAGS = -Wall -std=c++17 $(OPENMP_FLAG) $(NDEBUG_FLAG) \
  -I include/ \
  -I include/ktx/include/ \
 
-# Main executable
-EXE = $(BUILDDIR)/shadow_mapping
+# Main executables
+EXE1 = $(BUILDDIR)/tutorial
+EXE2 = $(BUILDDIR)/shadow_mapping
 
 
 ### Automatic variables ###
 
 # All cpp files from src/ directory
-SRC := $(wildcard $(SRCDIR)/*.cpp)
+# SRC := $(wildcard $(SRCDIR)/*.cpp)
 
 # Object files in build/ directory
-OBJ = $(SRC:.cpp=.o)
-OBJ := $(subst $(SRCDIR)/, $(BUILDDIR)/, $(OBJ))
+# OBJ = $(SRC:.cpp=.o)
+# OBJ := $(subst $(SRCDIR)/, $(BUILDDIR)/, $(OBJ))
 
 
 ### Rules ###
 
 # Build
-all: $(EXE) shaders
+all: $(EXE1) ${EXE2} shaders
+
 
 # Compile shaders (from SHADERDIR to BUILDDIR)
 shaders:
 	@mkdir -p $(dir $(BUILDDIR))
 	cd $(SHADERDIR) && bash compile.sh $(CURDIR)/$(BUILDDIR)
 
+
 # Compile source files (from SRCDIR to BUILDDIR)
 $(BUILDDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(dir $@)
 	g++ $(CFLAGS) -c -o $@ $< $(LFLAGS)
 
-# Link
-$(EXE): $(OBJ)
+
+# tutorial
+$(EXE1): $(BUILDDIR)/tutorial.o
 	g++ $(CFLAGS) -o $@ $^ $(LFLAGS)
+
+tutorial: $(EXE1) shaders
+	./$(EXE1)
+
+
+# shadow_mapping
+$(EXE2): $(BUILDDIR)/shadow_mapping.o
+	g++ $(CFLAGS) -o $@ $^ $(LFLAGS)
+
+shadow_mapping: $(EXE2) shaders
+	./$(EXE2)
+
 
 clean:
 	rm -f *.o $(BUILDDIR)/* $(SHADERDIR)/*.spv
+
 
 # print variables
 print:
 	@echo CFLAGS = $(CFLAGS)
 	@echo LFLAGS = $(LFLAGS)
-	@echo EXE = $(EXE)
-	@echo SRC = $(SRC)
-	@echo OBJ = $(OBJ)
-
-# compile and run in debug mode
-run: $(EXE) shaders
-	./$(EXE)
-
-# run in multi-threaded mode
-run_mt:
-	@$(MAKE) run OPENMP=1
 
 .PHONY: all clean print run run_mt shaders
 

@@ -1,6 +1,4 @@
 
-#pragma once
-
 // #include "../utils/utils.hpp"
 // #include "buffer.hpp"
 // #include "command.hpp"
@@ -963,3 +961,24 @@ class ShadowMapping {
 };
 
 } // namespace vk
+
+
+int main() {
+  // init glfw
+  glfwInit();
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // disable openGL context
+  auto window = glfwCreateWindow(vk::WIDTH, vk::HEIGHT, "Shadow Mapping", nullptr, nullptr);
+  auto shadowMapping = vk::ShadowMapping(window);
+  glfwSetWindowUserPointer(window, &shadowMapping);
+
+  // init vulkan
+  shadowMapping.init();
+
+  // main loop
+  shadowMapping.mainLoop();
+
+  // cleanup
+  // shadowMapping.cleanup();
+  glfwDestroyWindow(window);
+  glfwTerminate();
+}
