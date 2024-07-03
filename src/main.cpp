@@ -5,7 +5,7 @@
 #include "vk/kilauea.hpp"
 #include "vk/vertex.hpp"
 
-#include "vk/shadow_mapping.hpp"
+#include "shadow_mapping.hpp"
 
 using namespace vk;
 
@@ -26,7 +26,7 @@ class Application {
       if (RESIZABLE) {
         glfwSetWindowUserPointer(window, &kilauea);
         // glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
-        glfwSetFramebufferSizeCallback(window, ShadowMapping::framebufferResizeCallback);
+        // glfwSetFramebufferSizeCallback(window, ShadowMapping::framebufferResizeCallback);1
       }
 
       shadowMapping.mainLoop();

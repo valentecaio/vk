@@ -1,7 +1,5 @@
-#pragma once
 
-#include "../utils/common.hpp"
-#include "instance.hpp"
+#pragma once
 
 // #include "../utils/utils.hpp"
 // #include "buffer.hpp"
@@ -20,12 +18,14 @@
 // #include "texture.hpp"
 // #include "vertex.hpp"
 
+#include "utils/common.hpp"
+#include "vk/instance.hpp"
+
 #include <base/VulkanInitializers.hpp>
-#include <base/VulkanglTFModel.h>
 #include <base/VulkanDevice.h>
 #include <base/VulkanSwapChainGLFW.hpp>
 #include <base/camera.hpp>
-
+#include <base/VulkanglTFModel.h>
 
 namespace vk {
 
@@ -43,7 +43,6 @@ class ShadowMapping {
   	std::vector<vkglTF::Model> scene;
 
     bool prepared = false;
-    bool resized = false;
 	  uint32_t currentBuffer = 0;
 
     // Keep depth range as small as possible
@@ -162,19 +161,11 @@ class ShadowMapping {
 	  VkPipelineStageFlags submitPipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 
-
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-      // TODO
-      // auto kilauea = reinterpret_cast<ShadowMapping*>(glfwGetWindowUserPointer(window));
-      // kilauea->framebufferResized = true;
-    }
-
-
     void init() {
       camera.type = Camera::CameraType::lookat;
-      camera.setPosition(glm::vec3(0.0f, 0.0f, -12.5f));
+      camera.setPosition(glm::vec3(0.0f, 0.0f, -14.5f));
       camera.setRotation(glm::vec3(-25.0f, -390.0f, 0.0f));
-      camera.setPerspective(60.0f, (float)width / (float)height, 1.0f, 256.0f);
+      camera.setPerspective(70.0f, (float)width / (float)height, 1.0f, 256.0f);
       timerSpeed *= 0.5f;
 
 
@@ -241,13 +232,10 @@ class ShadowMapping {
 
 
       // Setup Swap Chain
-    	swapChain.create(&width, &height, false, false);
+    	swapChain.create(&width, &height);
 
 
-      // Command buffers (one command buffer for each swap chain image)
-      drawCmdBuffers.resize(swapChain.imageCount);
-      VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(drawCmdBuffers.size()));
-      VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data()));
+      createCommandBuffers();
 
 
       createFences();
@@ -302,8 +290,15 @@ class ShadowMapping {
     }
 
 
-    void createFences()
-    {
+
+    void createCommandBuffers() {
+      // Command buffers (one command buffer for each swap chain image)
+      drawCmdBuffers.resize(swapChain.imageCount);
+      VkCommandBufferAllocateInfo cmdBufAllocateInfo = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(drawCmdBuffers.size()));
+      VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data()));
+    }
+
+    void createFences() {
       // Wait fences (one for each command buffer)
       VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
       waitFences.resize(drawCmdBuffers.size());
@@ -574,33 +569,6 @@ class ShadowMapping {
     }
 
 
-    void updateLight() {
-      // Animate the light source
-      lightPos.x = cos(glm::radians(timer * 360.0f)) * 40.0f;
-      lightPos.y = -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f;
-      lightPos.z = 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f;
-    }
-
-    void updateUniformBuffers() {
-      uniformDataScene.projection = camera.matrices.perspective;
-      uniformDataScene.view = camera.matrices.view;
-      uniformDataScene.model = glm::mat4(1.0f);
-      uniformDataScene.lightPos = glm::vec4(lightPos, 1.0f);
-      uniformDataScene.depthBiasMVP = uniformDataOffscreen.depthMVP;
-      uniformDataScene.zNear = zNear;
-      uniformDataScene.zFar = zFar;
-      memcpy(uniformBuffers.scene.mapped, &uniformDataScene, sizeof(uniformDataScene));
-    }
-
-    void updateUniformBufferOffscreen() {
-      // Matrix from light's point of view
-      glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(lightFOV), 1.0f, zNear, zFar);
-      glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0, 1, 0));
-      glm::mat4 depthModelMatrix = glm::mat4(1.0f);
-      uniformDataOffscreen.depthMVP = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
-      memcpy(uniformBuffers.offscreen.mapped, &uniformDataOffscreen, sizeof(uniformDataOffscreen));
-    }
-
 
     void setupDescriptors() {
       // Pool
@@ -847,6 +815,34 @@ class ShadowMapping {
 
 
 
+    void updateLight() {
+      // Animate the light source
+      lightPos.x = cos(glm::radians(timer * 360.0f)) * 40.0f;
+      lightPos.y = -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f;
+      lightPos.z = 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f;
+    }
+
+    void updateUniformBuffers() {
+      uniformDataScene.projection = camera.matrices.perspective;
+      uniformDataScene.view = camera.matrices.view;
+      uniformDataScene.model = glm::mat4(1.0f);
+      uniformDataScene.lightPos = glm::vec4(lightPos, 1.0f);
+      uniformDataScene.depthBiasMVP = uniformDataOffscreen.depthMVP;
+      uniformDataScene.zNear = zNear;
+      uniformDataScene.zFar = zFar;
+      memcpy(uniformBuffers.scene.mapped, &uniformDataScene, sizeof(uniformDataScene));
+    }
+
+    void updateUniformBufferOffscreen() {
+      // Matrix from light's point of view
+      glm::mat4 depthProjectionMatrix = glm::perspective(glm::radians(lightFOV), 1.0f, zNear, zFar);
+      glm::mat4 depthViewMatrix = glm::lookAt(lightPos, glm::vec3(0.0f), glm::vec3(0, 1, 0));
+      glm::mat4 depthModelMatrix = glm::mat4(1.0f);
+      uniformDataOffscreen.depthMVP = depthProjectionMatrix * depthViewMatrix * depthModelMatrix;
+      memcpy(uniformBuffers.offscreen.mapped, &uniformDataOffscreen, sizeof(uniformDataOffscreen));
+    }
+
+
     void mainLoop() {
       while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -867,11 +863,10 @@ class ShadowMapping {
     void render() {
       if (!prepared)
         return;
-      if (camera.updated) {
-        updateLight();
-        updateUniformBufferOffscreen();
-        updateUniformBuffers();
-      }
+
+      updateLight();
+      updateUniformBufferOffscreen();
+      updateUniformBuffers();
 
       // draw frame
       prepareFrame();
@@ -884,97 +879,86 @@ class ShadowMapping {
 
     void prepareFrame()
     {
-      // Acquire the next image from the swap chain
       VkResult result = swapChain.acquireNextImage(semaphores.presentComplete, &currentBuffer);
       // Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE)
       // SRS - If no longer optimal (VK_SUBOPTIMAL_KHR), wait until submitFrame() in case number of swapchain images will change on resize
-      if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+      switch (result) {
+        case VK_ERROR_OUT_OF_DATE_KHR:
           windowResize();
-        }
-        return;
-      }
-      else {
-        VK_CHECK_RESULT(result);
+          return;
+        case VK_SUBOPTIMAL_KHR:
+          return;
+        default:
+          VK_CHECK_RESULT(result);
       }
     }
 
     void submitFrame() {
       VkResult result = swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
       // Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
-      if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-        windowResize();
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-          return;
-        }
-      }
-      else {
-        VK_CHECK_RESULT(result);
+      switch (result) {
+        case VK_ERROR_OUT_OF_DATE_KHR:
+        case VK_SUBOPTIMAL_KHR:
+          windowResize();
+          break;
+        default:
+          VK_CHECK_RESULT(result);
       }
       VK_CHECK_RESULT(vkQueueWaitIdle(queue));
     }
 
 
-    // TODO: get updated window size
-    void windowResize()
-    {
-      // if (!prepared)
-      // {
-      //   return;
-      // }
-      // prepared = false;
-      // resized = true;
+    void windowResize() {
+      if (!prepared) {
+        return;
+      }
+      prepared = false;
 
-      // // Ensure all operations on the device have been finished before destroying resources
-      // vkDeviceWaitIdle(device);
+      // Ensure all operations on the device have been finished before destroying resources
+      vkDeviceWaitIdle(device);
 
-      // // Recreate swap chain
-      // width = destWidth;
-      // height = destHeight;
-      // setupSwapChain();
+      // Recreate swap chain
+      int w = 0, h = 0;
+      glfwGetFramebufferSize(window, &w, &h);
+      while (w == 0 || h == 0) {
+        glfwGetFramebufferSize(window, &w, &h);
+        glfwWaitEvents();
+      }
+      width =  (uint32_t)w;
+      height = (uint32_t)h;
 
-      // // Recreate the frame buffers
-      // vkDestroyImageView(device, depthStencil.view, nullptr);
-      // vkDestroyImage(device, depthStencil.image, nullptr);
-      // vkFreeMemory(device, depthStencil.memory, nullptr);
-      // setupDepthStencil();
-      // for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-      //   vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
-      // }
-      // setupFrameBuffers();
+      swapChain.create(&width, &height);
 
-      // if ((width > 0.0f) && (height > 0.0f)) {
-      //   if (settings.overlay) {
-      //     ui.resize(width, height);
-      //   }
-      // }
+      // Recreate the frame buffers
+      vkDestroyImageView(device, depthStencil.view, nullptr);
+      vkDestroyImage(device, depthStencil.image, nullptr);
+      vkFreeMemory(device, depthStencil.memory, nullptr);
+      setupDepthStencil();
+      for (uint32_t i = 0; i < frameBuffers.size(); i++) {
+        vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
+      }
+      setupFrameBuffers();
 
-      // // Command buffers need to be recreated as they may store
-      // // references to the recreated frame buffer
-      // destroyCommandBuffers();
-      // createCommandBuffers();
-      // buildCommandBuffers();
+      // Command buffers need to be recreated as they may store
+      // references to the recreated frame buffer
+      vkFreeCommandBuffers(device, cmdPool, static_cast<uint32_t>(drawCmdBuffers.size()), drawCmdBuffers.data());
+      createCommandBuffers();
+      buildCommandBuffers();
 
-      // // SRS - Recreate fences in case number of swapchain images has changed on resize
-      // for (auto& fence : waitFences) {
-      //   vkDestroyFence(device, fence, nullptr);
-      // }
-      // createFences();
+      // SRS - Recreate fences in case number of swapchain images has changed on resize
+      for (auto& fence : waitFences) {
+        vkDestroyFence(device, fence, nullptr);
+      }
+      createFences();
 
-      // vkDeviceWaitIdle(device);
+      vkDeviceWaitIdle(device);
 
-      // if ((width > 0.0f) && (height > 0.0f)) {
-      //   camera.updateAspectRatio((float)width / (float)height);
-      // }
+      if ((width > 0.0f) && (height > 0.0f)) {
+        camera.updateAspectRatio((float)width / (float)height);
+      }
 
-      // prepared = true;
+      prepared = true;
     }
-
-
-
-
-
-
 
 };
 

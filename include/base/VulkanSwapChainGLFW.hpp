@@ -17,8 +17,9 @@
 #include <vector>
 
 #include <vulkan/vulkan.h>
-#include <base/VulkanTools.h>
 #include <GLFW/glfw3.h>
+
+#include "VulkanTools.h"
 
 typedef struct _SwapChainBuffers {
 	VkImage image;

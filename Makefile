@@ -18,16 +18,16 @@ BUILDDIR := build
 SHADERDIR := shaders
 LFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -Llib -lbase
 CFLAGS = -Wall -std=c++17 $(OPENMP_FLAG) $(NDEBUG_FLAG) \
- -I lib/ \
- -I lib/ktx/include \
+ -I include/ \
+ -I include/ktx/include/ \
 
 # Main executable
-EXE = $(BUILDDIR)/vk
+EXE = $(BUILDDIR)/shadow_mapping
 
 
 ### Automatic variables ###
 
-# Source files in src/ directory
+# All cpp files from src/ directory
 SRC := $(wildcard $(SRCDIR)/*.cpp)
 
 # Object files in build/ directory
