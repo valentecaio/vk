@@ -1,26 +1,31 @@
 #pragma once
 
 // glfw
-// replace the include <vulkan/vulkan.h>, needs to be before glfw3.h
+// replace the include <vulkan/vulkan.h> (needs to be before the include of glfw3.h)
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-// tinyobjloader (under lib/)
+// lib/tiny_obj_loader
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny_obj_loader.h>
 
-// stb (under lib/)
-#define STB_IMAGE_IMPLEMENTATION
+// lib/stb
+// #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-// glm (under lib/glm-1.0.1/)
+// lib/tiny_gltf
+#define TINYGLTF_NO_INCLUDE_STB_IMAGE
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+#include <tiny_gltf.h>
+
+// lib/glm
 // https://docs.vulkan.org/tutorial/latest/05_Uniform_buffers/01_Descriptor_pool_and_sets.html#_alignment_requirements
 #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES // force GLM to use aligned types in structs
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE        // openGL uses [-1, 1] for depth, vulkan uses [0, 1]
 #define GLM_ENABLE_EXPERIMENTAL            // enable hash for glm::vec3
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale
-#include <gtx/hash.hpp>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp> // glm::translate, glm::rotate, glm::scale
+#include <glm/gtx/hash.hpp>
 
 
 // standard

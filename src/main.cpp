@@ -5,6 +5,8 @@
 #include "vk/kilauea.hpp"
 #include "vk/vertex.hpp"
 
+#include "vk/shadow_mapping.hpp"
+
 using namespace vk;
 
 #define RESIZABLE true
@@ -13,22 +15,28 @@ class Application {
   public:
     void run() {
       initWindow();
-      kilauea = Kilauea(window);
-      kilauea.init();
+
+      // kilauea = Kilauea(window);
+      // kilauea.init();
+
+      shadowMapping = ShadowMapping(window);
+      shadowMapping.init();
 
       // resize callback
       if (RESIZABLE) {
         glfwSetWindowUserPointer(window, &kilauea);
-        glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
+        // glfwSetFramebufferSizeCallback(window, Kilauea::framebufferResizeCallback);
+        glfwSetFramebufferSizeCallback(window, ShadowMapping::framebufferResizeCallback);
       }
 
-      mainLoop();
+      shadowMapping.mainLoop();
       cleanup();
     }
 
   private:
     GLFWwindow* window;  // window handle
     Kilauea kilauea;     // vulkan handle
+    ShadowMapping shadowMapping;
 
     void initWindow() {
       glfwInit();
@@ -38,16 +46,6 @@ class Application {
 
       // 4th argument is monitor (fullscreen), 5th is share (only for openGL)
       window = glfwCreateWindow(WIDTH, HEIGHT, "Kilauea", nullptr, nullptr);
-    }
-
-    void mainLoop() {
-      while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
-        // TODO: update vertices
-        kilauea.drawFrame();
-      }
-
-      kilauea.waitIdle();
     }
 
     void cleanup() {

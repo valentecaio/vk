@@ -16,10 +16,10 @@ endif
 SRCDIR := src
 BUILDDIR := build
 SHADERDIR := shaders
-LFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi
+LFLAGS = -lglfw -lvulkan -ldl -lpthread -lX11 -lXxf86vm -lXrandr -lXi -Llib -lbase
 CFLAGS = -Wall -std=c++17 $(OPENMP_FLAG) $(NDEBUG_FLAG) \
  -I lib/ \
- -I lib/glm-1.0.1/
+ -I lib/ktx/include \
 
 # Main executable
 EXE = $(BUILDDIR)/vk
