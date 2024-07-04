@@ -17,6 +17,36 @@ namespace vks
 {
 	namespace initializers
 	{
+    // custom methods //
+
+    inline VkPipelineCacheCreateInfo pipelineCacheCreateInfo()
+    {
+      VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+      pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+      return pipelineCacheCreateInfo;
+    }
+
+    inline VkCommandPoolCreateInfo commandPoolCreateInfo(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0)
+    {
+      VkCommandPoolCreateInfo cmdPoolInfo = {};
+      cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+      cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
+      cmdPoolInfo.flags = flags;
+      return cmdPoolInfo;
+    }
+
+    inline VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo(VkShaderStageFlagBits stage, VkShaderModule shaderModule)
+    {
+      VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo = {};
+      pipelineShaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+      pipelineShaderStageCreateInfo.stage = stage;
+      pipelineShaderStageCreateInfo.module = shaderModule;
+      pipelineShaderStageCreateInfo.pName = "main";
+      return pipelineShaderStageCreateInfo;
+    }
+
+
+    // original methods //
 
 		inline VkMemoryAllocateInfo memoryAllocateInfo()
 		{
@@ -150,13 +180,6 @@ namespace vks
 			fenceCreateInfo.flags = flags;
 			return fenceCreateInfo;
 		}
-
-    inline VkPipelineCacheCreateInfo pipelineCacheCreateInfo()
-    {
-      VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-      pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-      return pipelineCacheCreateInfo;
-    }
 
 		inline VkEventCreateInfo eventCreateInfo()
 		{
