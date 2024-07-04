@@ -16,6 +16,7 @@ class ShadowMapping {
 
     ShadowMapping(GLFWwindow* window, Camera camera) : window(window), camera(camera) {};
 
+
     /************************ public settings ************************/
 
     bool displayShadowMap = false;   // display the shadow map (debug)
@@ -34,17 +35,20 @@ class ShadowMapping {
     float depthBiasSlope = 1.75f;    // slope factor (applied depending on polygon's slope)
 
 
-  private:
-    /************************ private state ************************/
 
+    /************************ private state ************************/
+  private:
     GLFWwindow* window;                 // window handle
     Camera camera;                      // camera handle
     vkglTF::Model scene;                // model scene handle
     std::vector<vkglTF::Model> scenes;
-    glm::vec3 lightPos = glm::vec3();   // light position
+    bool paused = false;                // flag to pause the scene
     bool prepared = false;              // flag to indicate if the scene is ready to be rendered
     uint32_t currentBuffer = 0;         // index of the current swap chain buffer
+    glm::vec3 lightPos = glm::vec3();   // light position
     float timer = 0.0f;                 // frame rate independent timer, clamped from [0, 1]
+
+    // constants
     struct {
       std::string sceneVert = "build/scene.vert.spv";
       std::string sceneFrag = "build/scene.frag.spv";
@@ -53,6 +57,16 @@ class ShadowMapping {
       std::string offscVert = "build/offscreen.vert.spv";
       std::string model = "models/samplescene.gltf";
     } paths;
+
+    // input (WASD or right click to translate, left click to rotate)
+    struct Input {
+      struct {
+        bool buttons[8] = {false};  // mouse buttons state
+        float x, y;                 // last mouse position
+      } mouse;
+      bool keys[1024] = {false};    // keyboard keys state
+    } input;
+
 
     /************************ vulkan objects ************************/
 
@@ -64,27 +78,27 @@ class ShadowMapping {
     VkCommandPool commandPool;          // pool for submitting command buffers
     VkQueue queue;                      // graphics queue
     VulkanSwapChainGLFW swapChain;      // wrapper for swap chain
+    VkSemaphore semaphPresentComplete;  // semaphore for swap chain image presentation
+    VkSemaphore semaphRenderComplete;   // semaphore for command buffer submission and execution
 
     std::vector<VkCommandBuffer> drawCmdBuffers; // command buffers (one per swap chain image)
     std::vector<VkFence> waitFences;             // wait fences     (one per swap chain image)
     std::vector<VkShaderModule> shaderModules;   // shader modules  (one per shader)
 
+    // information about a queue submit operation
     struct {
-      VkSemaphore presentComplete;      // semaphore for swap chain image presentation
-      VkSemaphore renderComplete;       // semaphore for command buffer submission and execution
-    } semaphores;
-
-    struct {
-      VkSubmitInfo info;                // information about a queue submit operation
+      VkSubmitInfo info;
       VkPipelineStageFlags stageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     } submit;
 
+    // framebuffer attachment used in render passes
     struct FrameBufferAttachment {
       VkImage image;
       VkDeviceMemory mem;
       VkImageView view;
     };
 
+    // render pass of main scene
     struct ScenePass {
       std::vector<VkFramebuffer> frameBuffers;    // frame buffers for the scene rendering (one per swap chain image)
       FrameBufferAttachment color, depth;         // color and depth attachments
@@ -93,6 +107,7 @@ class ShadowMapping {
       VkRenderPass renderPass;
     } scenePass{};
 
+    // offscreen pass for shadow map rendering
     struct OffscreenPass {
       int32_t width, height;                      // fixed size equal to shadowMapize
       VkFramebuffer frameBuffer;                  // only one because we render to the whole image
@@ -141,9 +156,10 @@ class ShadowMapping {
     } descriptorSets;
 
 
-  public:
-    /************************ public methods ************************/
 
+
+    /************************ public methods ************************/
+  public:
     void init() {
       // initial vulkan setup (instance, device, graphics queue, model, semaphores, fences, surface, swap chain)
       vk::createInstance(instance);
@@ -177,10 +193,14 @@ class ShadowMapping {
     void mainLoop() {
       while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+        if (paused)
+          continue;
 
         auto tStart = std::chrono::high_resolution_clock::now();
-        updateScene(); // update scene
+
+        updateScene();
         render();
+
         auto tEnd = std::chrono::high_resolution_clock::now();
         auto frameDuration = std::chrono::duration<double, std::milli>(tEnd - tStart).count() / 1000.0f;
         camera.update(frameDuration);
@@ -196,9 +216,51 @@ class ShadowMapping {
 
     }
 
+    /************************ static input callbacks ************************/
 
-  private:
+    // WASD translation
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+      ShadowMapping* me = static_cast<ShadowMapping*>(glfwGetWindowUserPointer(window));
+      auto keys = me->input.keys;
+      if (action == GLFW_PRESS) {
+        keys[key] = true;
+      } else if (action == GLFW_RELEASE) {
+        keys[key] = false;
+        if (key == GLFW_KEY_SPACE) {
+          me->paused = !me->paused;
+        }
+      }
+      me->camera.keys.up = keys[GLFW_KEY_W];
+      me->camera.keys.down = keys[GLFW_KEY_S];
+      me->camera.keys.left = keys[GLFW_KEY_A];
+      me->camera.keys.right = keys[GLFW_KEY_D];
+    }
+
+    static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+      ShadowMapping* me = static_cast<ShadowMapping*>(glfwGetWindowUserPointer(window));
+      me->input.mouse.buttons[button] = (action == GLFW_PRESS);
+    }
+
+    // left click to rotate, right click to translate
+    static void cursorPositionCallback(GLFWwindow* window, double x, double y) {
+      ShadowMapping* me = static_cast<ShadowMapping*>(glfwGetWindowUserPointer(window));
+      auto mouse = &me->input.mouse;
+      float dx = static_cast<float>(x - mouse->x);
+      float dy = static_cast<float>(y - mouse->y);
+      if (mouse->buttons[GLFW_MOUSE_BUTTON_LEFT]) {
+        me->camera.rotate(glm::vec3(0.15f * dy, 0.15f * -dx, 0.0f));
+      } if (mouse->buttons[GLFW_MOUSE_BUTTON_RIGHT]) {
+        me->camera.translate(glm::vec3(0.05f * dx, 0.05f * dy, 0.0f));
+      }
+      mouse->x = static_cast<float>(x);
+      mouse->y = static_cast<float>(y);
+    }
+
+
+
+
     /************************ private methods ************************/
+  private:
 
     // Vulkan device wrapper and logical device
     void createDevice() {
@@ -226,14 +288,14 @@ class ShadowMapping {
     // Semaphores (they stay the same during application time)
     void createSemaphores() {
       VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
-      VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphores.presentComplete));
-      VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphores.renderComplete));
+      VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphPresentComplete));
+      VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &semaphRenderComplete));
       submit.info = vks::initializers::submitInfo();
       submit.info.pWaitDstStageMask = &submit.stageMask;
       submit.info.waitSemaphoreCount = 1;
-      submit.info.pWaitSemaphores = &semaphores.presentComplete;
+      submit.info.pWaitSemaphores = &semaphPresentComplete;
       submit.info.signalSemaphoreCount = 1;
-      submit.info.pSignalSemaphores = &semaphores.renderComplete;
+      submit.info.pSignalSemaphores = &semaphRenderComplete;
       submit.info.commandBufferCount = 1;
     }
 
@@ -756,7 +818,7 @@ class ShadowMapping {
         return;
 
       // prepare frame
-      VkResult result = swapChain.acquireNextImage(semaphores.presentComplete, &currentBuffer);
+      VkResult result = swapChain.acquireNextImage(semaphPresentComplete, &currentBuffer);
       if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE)
         recreateSwapChain();
@@ -769,7 +831,7 @@ class ShadowMapping {
       VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submit.info, VK_NULL_HANDLE));
 
       // present frame and wait until the queue is idle
-      result = swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
+      result = swapChain.queuePresent(queue, currentBuffer, semaphRenderComplete);
       if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         recreateSwapChain();
       } else {
@@ -847,19 +909,24 @@ int main() {
 
   // init camera
   auto camera = Camera();
-  camera.type = Camera::CameraType::lookat;
-  camera.setPosition(glm::vec3(0.0f, 2.0f, -17.0f));
+  camera.type = Camera::CameraType::firstperson;
+  camera.setMovementSpeed(5.0f);
+  camera.setPosition(glm::vec3(-0.6f, 9.5f, -14.0f));
   camera.setRotation(glm::vec3(-30.0f, 0.0f, 0.0f));
   camera.setPerspective(70.0f, (float)w / (float)h, 1.0f, 256.0f);
 
-  // settings
-  auto shadowMapping = ShadowMapping(window, camera);
+  // init vulkan object
+  ShadowMapping shadowMapping = ShadowMapping(window, camera);
   shadowMapping.gpu_id = 0;
   shadowMapping.width = w;
   shadowMapping.height = h;
-
-  // init vulkan
   shadowMapping.init();
+
+  // input callbacks
+  glfwSetWindowUserPointer(window, &shadowMapping);
+  glfwSetKeyCallback(window, shadowMapping.keyCallback);
+  glfwSetMouseButtonCallback(window, shadowMapping.mouseButtonCallback);
+  glfwSetCursorPosCallback(window, shadowMapping.cursorPositionCallback);
 
   // main loop
   shadowMapping.mainLoop();
