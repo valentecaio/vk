@@ -4,11 +4,22 @@
 #include "queue_family.hpp"
 #include "swap_chain.hpp"
 
+#include <base/VulkanTools.h>
+
 namespace vk {
 
 const std::vector<const char*> deviceExtensions = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
+
+// simplest way to pick any physical device
+void getPhysicalDevice(VkInstance instance, int gpu_id, VkPhysicalDevice& physicalDevice) {
+  uint32_t gpuCount = 0;
+  VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &gpuCount, nullptr));
+  std::vector<VkPhysicalDevice> physicalDevices(gpuCount);
+  VK_CHECK_RESULT(vkEnumeratePhysicalDevices(instance, &gpuCount, physicalDevices.data()));
+  physicalDevice = physicalDevices[gpu_id];
+}
 
 bool checkDeviceExtensionSupport(VkPhysicalDevice physDevice) {
   uint32_t extensionCount;

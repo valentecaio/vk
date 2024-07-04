@@ -85,6 +85,7 @@
     "__locale": "cpp",
     "locale": "cpp",
     "__functional_03": "cpp",
-    "filesystem": "cpp"
+    "filesystem": "cpp",
+    "__config": "cpp"
   }
 }

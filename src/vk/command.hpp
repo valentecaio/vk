@@ -4,7 +4,16 @@
 #include "queue_family.hpp"
 #include "vertex.hpp"
 
+#include <base/VulkanTools.h>
+#include <base/VulkanInitializers.hpp>
+
 namespace vk {
+
+// the simplest way to create a command pool
+void createCommandPool(VkDevice device, uint32_t queueFamilyIndex, VkCommandPool& commandPool) {
+  VkCommandPoolCreateInfo cmdPoolInfo = vks::initializers::commandPoolCreateInfo(queueFamilyIndex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+  VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &commandPool));
+}
 
 void createCommandPool(VkDevice device, VkPhysicalDevice physicalDevice, VkSurfaceKHR surface,
                        QueueFamilyIndices queueFamilyIndices, VkCommandPool& commandPool) {

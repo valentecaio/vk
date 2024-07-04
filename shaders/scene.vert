@@ -21,6 +21,8 @@ layout (location = 2) out vec3 outViewVec;
 layout (location = 3) out vec3 outLightVec;
 layout (location = 4) out vec4 outShadowCoord;
 
+// matrix to convert coordinates from [-1, 1] to [0, 1]
+// we need this because the shadow map is in [0, 1] range
 const mat4 biasMat = mat4( 
 	0.5, 0.0, 0.0, 0.0,
 	0.0, 0.5, 0.0, 0.0,
