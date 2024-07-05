@@ -42,7 +42,7 @@ class ShadowMapping {
     Camera camera;                      // camera handle
     vkglTF::Model scene;                // model scene handle
     std::vector<vkglTF::Model> scenes;
-    bool paused = false;                // flag to pause the scene
+    bool paused = false;                // flag to pause animations (movement still allowed)
     bool prepared = false;              // flag to indicate if the scene is ready to be rendered
     uint32_t currentBuffer = 0;         // index of the current swap chain buffer
     glm::vec3 lightPos = glm::vec3();   // light position
@@ -193,8 +193,6 @@ class ShadowMapping {
     void mainLoop() {
       while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        if (paused)
-          continue;
 
         auto tStart = std::chrono::high_resolution_clock::now();
 
@@ -205,10 +203,12 @@ class ShadowMapping {
         auto frameDuration = std::chrono::duration<double, std::milli>(tEnd - tStart).count() / 1000.0f;
         camera.update(frameDuration);
 
-        // update timer for next frame
-        timer += timerSpeed * frameDuration;
-        if (timer > 1.0)
-          timer -= 1.0f;
+        // update timer for next frame animation
+        if (!paused) {
+          timer += timerSpeed * frameDuration;
+          if (timer > 1.0)
+            timer -= 1.0f;
+        }
       }
     }
 
@@ -248,9 +248,15 @@ class ShadowMapping {
       float dx = static_cast<float>(x - mouse->x);
       float dy = static_cast<float>(y - mouse->y);
       if (mouse->buttons[GLFW_MOUSE_BUTTON_LEFT]) {
-        me->camera.rotate(glm::vec3(0.15f * dy, 0.15f * -dx, 0.0f));
+        me->camera.rotate(glm::vec3(0.15f * dy, 0.15f * dx, 0.0f));
       } if (mouse->buttons[GLFW_MOUSE_BUTTON_RIGHT]) {
-        me->camera.translate(glm::vec3(0.05f * dx, 0.05f * dy, 0.0f));
+        // vertical
+        if (dy != 0) me->camera.translate(glm::vec3(0.0f, 0.05f * dy, 0.0f));
+
+        // horizontal (dx>0 move left, dx<0 move right)
+        me->camera.keys.left = true;
+        me->camera.update(dx / 100.0f);
+        me->camera.keys = {false}; // reset keys
       }
       mouse->x = static_cast<float>(x);
       mouse->y = static_cast<float>(y);
@@ -789,9 +795,11 @@ class ShadowMapping {
     // update position of objects in the scene
     void updateScene() {
       // animate the light source
-      lightPos.x = cos(glm::radians(timer * 360.0f)) * 40.0f;
-      lightPos.y = -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f;
-      lightPos.z = 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f;
+      if (!paused) {
+        lightPos.x = cos(glm::radians(timer * 360.0f)) * 40.0f;
+        lightPos.y = -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f;
+        lightPos.z = 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f;
+      }
 
       // scene uniform buffer
       uniformDataScene.projection = camera.matrices.perspective;
