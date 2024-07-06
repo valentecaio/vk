@@ -100,7 +100,7 @@ struct VulkanDevice
 	*
 	* @note Frees the logical device
 	*/
-	VulkanDevice()
+	~VulkanDevice()
 	{
 		if (commandPool)
 		{

@@ -45,6 +45,21 @@ namespace vks
       return pipelineShaderStageCreateInfo;
     }
 
+    inline VkImageCreateInfo imageCreateInfo(VkFormat format, VkExtent3D extent)
+    {
+      VkImageCreateInfo imageCreateInfo {};
+      imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+      imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+      imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+      imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+      imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+      imageCreateInfo.mipLevels = 1;
+      imageCreateInfo.arrayLayers = 1;
+      imageCreateInfo.format = format;
+      imageCreateInfo.extent = extent;
+      return imageCreateInfo;
+    }
+
 
     // original methods //
 

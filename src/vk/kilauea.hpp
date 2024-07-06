@@ -60,7 +60,9 @@ class Kilauea {
 
 
     void cleanup() {
+      // swap chain and surface
       cleanupSwapChain();
+      vkDestroySurfaceKHR(instance, surface, nullptr);
 
       // texture
       vkDestroySampler(device, textureSampler, nullptr);
@@ -99,7 +101,6 @@ class Kilauea {
 
       destroyDebugUtilsMessengerEXT(instance, debugMsgr, nullptr);
 
-      vkDestroySurfaceKHR(instance, surface, nullptr);
       vkDestroyInstance(instance, nullptr);
     }
 

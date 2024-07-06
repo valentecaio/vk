@@ -12,9 +12,14 @@
 
 class ShadowMapping {
   public:
-    /************************ constructors ************************/
+    /************************ constructor and destructor ************************/
 
     ShadowMapping(GLFWwindow* window, Camera camera) : window(window), camera(camera) {};
+
+    ~ShadowMapping() {
+      cleanup();
+    }
+
 
 
     /************************ public settings ************************/
@@ -40,10 +45,9 @@ class ShadowMapping {
   private:
     GLFWwindow* window;                 // window handle
     Camera camera;                      // camera handle
-    vkglTF::Model scene;                // model scene handle
-    std::vector<vkglTF::Model> scenes;
+    std::vector<vkglTF::Model> scenes;  // scenes
     bool paused = false;                // flag to pause animations (movement still allowed)
-    bool prepared = false;              // flag to indicate if the scene is ready to be rendered
+    bool swap_chain_ready = false;      // flag to indicate if the swap chain is ready to acquire frames
     uint32_t currentBuffer = 0;         // index of the current swap chain buffer
     glm::vec3 lightPos = glm::vec3();   // light position
     float timer = 0.0f;                 // frame rate independent timer, clamped from [0, 1]
@@ -68,6 +72,7 @@ class ShadowMapping {
     } input;
 
 
+
     /************************ vulkan objects ************************/
 
     VkInstance instance;                // connection between application and vulkan library
@@ -75,7 +80,7 @@ class ShadowMapping {
     vks::VulkanDevice *vulkanDevice;    // wrapper for vulkan device (logical and physical)
     VkDevice device;                    // pointer to vulkanDevice->logicalDevice
     VkPhysicalDevice physicalDevice;    // pointer to vulkanDevice->physicalDevice
-    VkCommandPool commandPool;          // pool for submitting command buffers
+    VkCommandPool commandPool;          // pointer to vulkanDevice->commandPool. A pool for submitting command buffers
     VkQueue queue;                      // graphics queue
     VulkanSwapChainGLFW swapChain;      // wrapper for swap chain
     VkSemaphore semaphPresentComplete;  // semaphore for swap chain image presentation
@@ -92,16 +97,24 @@ class ShadowMapping {
     } submit;
 
     // framebuffer attachment used in render passes
-    struct FrameBufferAttachment {
-      VkImage image;
-      VkDeviceMemory mem;
-      VkImageView view;
+    class FrameBufferAttachment {
+      public:
+        VkImage image;
+        VkDeviceMemory mem;
+        VkImageView view;
+
+        // destroy the image, memory, and view
+        void destroy(VkDevice device) {
+          vkDestroyImage(device, image, nullptr);
+          vkFreeMemory(device, mem, nullptr);
+          vkDestroyImageView(device, view, nullptr);
+        }
     };
 
     // render pass of main scene
     struct ScenePass {
       std::vector<VkFramebuffer> frameBuffers;    // frame buffers for the scene rendering (one per swap chain image)
-      FrameBufferAttachment color, depth;         // color and depth attachments
+      FrameBufferAttachment depth;                // depth attachments
       VkFormat depthFormat;
       vks::Buffer uniformBuffer;                  // uniform buffer for the scene rendering
       VkRenderPass renderPass;
@@ -109,7 +122,7 @@ class ShadowMapping {
 
     // offscreen pass for shadow map rendering
     struct OffscreenPass {
-      int32_t width, height;                      // fixed size equal to shadowMapize
+      uint32_t width, height;                     // fixed size equal to shadowMapize
       VkFramebuffer frameBuffer;                  // only one because we render to the whole image
       FrameBufferAttachment depth;                // depth attachment (shadow map)
       VkFormat depthFormat = VK_FORMAT_D16_UNORM; // 16 bits is enough for the shadow map
@@ -147,13 +160,13 @@ class ShadowMapping {
     } pipelines;
 
     // descriptor sets for each render
-    struct DescriptorSets {
+    struct Descriptors {
       VkDescriptorSet offscreen;    // descriptor set for the offscreen rendering
       VkDescriptorSet scene;        // descriptor set for the scene rendering
       VkDescriptorSet debug;        // descriptor set for the shadow map visualization
       VkDescriptorSetLayout layout; // common layout for all descriptor sets
       VkDescriptorPool pool;        // common pool for submitting descriptor sets (uniform buffers)
-    } descriptorSets;
+    } descriptors;
 
 
 
@@ -165,17 +178,19 @@ class ShadowMapping {
       vk::createInstance(instance);
       vk::setupDebugMessenger(instance, debugMsgr);
       vk::getPhysicalDevice(instance, gpu_id, physicalDevice);
-      createDevice(); // init vulkanDevice and device
+      createDevice(); // init vulkanDevice, device and commandPool
       vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue); // Graphics queue
       loadModel();
+      createSwapChain(); // init swap chain and surface
       createSemaphores();
       createFences();
-      createSwapChain(); // init swap chain and surface
 
       // offscreen pass setup
+      // we can setup everything at once here because there is no resizing of the offscreen framebuffer
       setupOffscreenRenderPassAndFramebuffer();
 
       // scene pass setup
+      // the depth stencil and the framebuffers need to be recreated after a window resize
       setupSceneDepthStencil();
       setupSceneRenderPass();
       setupSceneFrameBuffers();
@@ -184,10 +199,9 @@ class ShadowMapping {
       setupUniformBuffers();
       setupDescriptorSets();
       setupPipelines();
-      vk::createCommandPool(device, swapChain.queueNodeIndex, commandPool);
       setupCommandBuffers();
 
-      prepared = true;
+      swap_chain_ready = true;
     }
 
     void mainLoop() {
@@ -212,13 +226,11 @@ class ShadowMapping {
       }
     }
 
-    void cleanup() {
 
-    }
 
-    /************************ static input callbacks ************************/
+    /************************ input callbacks ************************/
 
-    // WASD translation
+    // WASD translate
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
       ShadowMapping* me = static_cast<ShadowMapping*>(glfwGetWindowUserPointer(window));
       auto keys = me->input.keys;
@@ -265,9 +277,10 @@ class ShadowMapping {
 
 
 
-    /************************ private methods ************************/
-  private:
+    /************************ init ************************/
 
+
+  private:
     // Vulkan device wrapper and logical device
     void createDevice() {
       VkPhysicalDeviceFeatures enabledFeatures{};
@@ -275,13 +288,13 @@ class ShadowMapping {
       vulkanDevice = new vks::VulkanDevice(physicalDevice);
       VK_CHECK_RESULT(vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, nullptr));
       device = vulkanDevice->logicalDevice;
+      commandPool = vulkanDevice->commandPool;
     }
 
     void loadModel() {
       const uint32_t glTFLoadingFlags = vkglTF::FileLoadingFlags::PreTransformVertices | vkglTF::FileLoadingFlags::PreMultiplyVertexColors | vkglTF::FileLoadingFlags::FlipY;
       scenes.resize(1);
       scenes[0].loadFromFile(paths.model, vulkanDevice, queue, glTFLoadingFlags);
-      scene = scenes[0];
     }
 
     // Swap chain and surface
@@ -305,11 +318,10 @@ class ShadowMapping {
       submit.info.commandBufferCount = 1;
     }
 
-    // TODO: unused
     // Wait fences (one for each command buffer)
     void createFences() {
       VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-      waitFences.resize(drawCmdBuffers.size());
+      waitFences.resize(swapChain.imageCount);
       for (auto& fence : waitFences) {
         VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
       }
@@ -321,17 +333,8 @@ class ShadowMapping {
         vks::tools::getSupportedDepthFormat(physicalDevice, &scenePass.depthFormat);
       }
 
-      VkImageCreateInfo imageCI{};
-      imageCI.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-      imageCI.imageType = VK_IMAGE_TYPE_2D;
-      imageCI.format = scenePass.depthFormat;
-      imageCI.extent = { width, height, 1 };
-      imageCI.mipLevels = 1;
-      imageCI.arrayLayers = 1;
-      imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
-      imageCI.tiling = VK_IMAGE_TILING_OPTIMAL;
+      VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo(scenePass.depthFormat, {width, height, 1});
       imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
       VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &scenePass.depth.image));
       VkMemoryRequirements memReqs{};
       vkGetImageMemoryRequirements(device, scenePass.depth.image, &memReqs);
@@ -455,24 +458,16 @@ class ShadowMapping {
       }
     }
 
-    // Setup the offscreen framebuffer for rendering the scene from light's point-of-view to
+    // Setup the offscreen framebuffer for rendering the scene from light's point-of-view to generate the shadow map
     // The depth attachment of this framebuffer will then be used to sample from in the fragment shader of the shadowing pass
     void setupOffscreenRenderPassAndFramebuffer() {
       offscreenPass.width = offscreenPass.height = shadowMapize;
 
-      // For shadow mapping we only need a depth attachment
-      VkImageCreateInfo image = vks::initializers::imageCreateInfo();
-      image.imageType = VK_IMAGE_TYPE_2D;
-      image.extent.width = offscreenPass.width;
-      image.extent.height = offscreenPass.height;
-      image.extent.depth = 1;
-      image.mipLevels = 1;
-      image.arrayLayers = 1;
-      image.samples = VK_SAMPLE_COUNT_1_BIT;
-      image.tiling = VK_IMAGE_TILING_OPTIMAL;
-      image.format = offscreenPass.depthFormat;                                // Depth stencil attachment
-      image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;    // We will sample directly from the depth attachment for the shadow mapping
-      VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &offscreenPass.depth.image));
+      // depth attachment for shadow mapping
+      VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo(offscreenPass.depthFormat, {offscreenPass.width, offscreenPass.height, 1});
+      // we will sample directly from the depth attachment
+      imageCI.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+      VK_CHECK_RESULT(vkCreateImage(device, &imageCI, nullptr, &offscreenPass.depth.image));
 
       VkMemoryAllocateInfo memAlloc = vks::initializers::memoryAllocateInfo();
       VkMemoryRequirements memReqs;
@@ -589,7 +584,7 @@ class ShadowMapping {
         vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3)
       };
       VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, 3);
-      VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorSets.pool));
+      VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptors.pool));
 
       // Common layout
       std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -599,44 +594,43 @@ class ShadowMapping {
         vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
       };
       VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-      VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSets.layout));
+      VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptors.layout));
 
       // Sets
       std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
       // Image descriptor for the shadow map attachment
-      VkDescriptorImageInfo shadowMapDescriptor =
-        vks::initializers::descriptorImageInfo(
+      VkDescriptorImageInfo shadowMapDescriptor = vks::initializers::descriptorImageInfo(
           offscreenPass.depthSampler,
           offscreenPass.depth.view,
           VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
 
       // Debug display
-      VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorSets.pool, &descriptorSets.layout, 1);
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.debug));
+      VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptors.pool, &descriptors.layout, 1);
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptors.debug));
       writeDescriptorSets = {
         // Binding 0 : Parameters uniform buffer
-        vks::initializers::writeDescriptorSet(descriptorSets.debug, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &scenePass.uniformBuffer.descriptor),
+        vks::initializers::writeDescriptorSet(descriptors.debug, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &scenePass.uniformBuffer.descriptor),
         // Binding 1 : Fragment shader texture sampler
-        vks::initializers::writeDescriptorSet(descriptorSets.debug, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &shadowMapDescriptor)
+        vks::initializers::writeDescriptorSet(descriptors.debug, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &shadowMapDescriptor)
       };
       vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
       // Offscreen shadow map generation
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.offscreen));
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptors.offscreen));
       writeDescriptorSets = {
         // Binding 0 : Vertex shader uniform buffer
-        vks::initializers::writeDescriptorSet(descriptorSets.offscreen, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &offscreenPass.uniformBuffer.descriptor),
+        vks::initializers::writeDescriptorSet(descriptors.offscreen, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &offscreenPass.uniformBuffer.descriptor),
       };
       vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
       // Scene rendering with shadow map applied
-      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.scene));
+      VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptors.scene));
       writeDescriptorSets = {
         // Binding 0 : Vertex shader uniform buffer
-        vks::initializers::writeDescriptorSet(descriptorSets.scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &scenePass.uniformBuffer.descriptor),
+        vks::initializers::writeDescriptorSet(descriptors.scene, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &scenePass.uniformBuffer.descriptor),
         // Binding 1 : Fragment shader shadow sampler
-        vks::initializers::writeDescriptorSet(descriptorSets.scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &shadowMapDescriptor)
+        vks::initializers::writeDescriptorSet(descriptors.scene, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &shadowMapDescriptor)
       };
       vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
     }
@@ -647,7 +641,7 @@ class ShadowMapping {
       VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelines.cache));
 
       // Layout
-      VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptorSets.layout, 1);
+      VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = vks::initializers::pipelineLayoutCreateInfo(&descriptors.layout, 1);
       VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelines.layout));
 
       // Pipelines
@@ -738,8 +732,8 @@ class ShadowMapping {
               vkCmdSetDepthBias(drawCmdBuffers[i], depthBiasConstant, 0.0f, depthBiasSlope);
 
               vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.offscreen);
-              vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptorSets.offscreen, 0, nullptr);
-              scene.draw(drawCmdBuffers[i]);
+              vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptors.offscreen, 0, nullptr);
+              scenes[0].draw(drawCmdBuffers[i]);
             }
             vkCmdEndRenderPass(drawCmdBuffers[i]);
           } // end of first pass
@@ -768,14 +762,14 @@ class ShadowMapping {
 
               // Visualize shadow map
               if (displayShadowMap) {
-                vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptorSets.debug, 0, nullptr);
+                vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptors.debug, 0, nullptr);
                 vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.debug);
                 vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
               } else {
                 // Render the shadows scene
-                vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptorSets.scene, 0, nullptr);
+                vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.layout, 0, 1, &descriptors.scene, 0, nullptr);
                 vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.sceneShadow);
-                scene.draw(drawCmdBuffers[i]);
+                scenes[0].draw(drawCmdBuffers[i]);
               }
             }
           } // end of second pass
@@ -791,6 +785,11 @@ class ShadowMapping {
       shaderModules.push_back(module);
       return vks::initializers::pipelineShaderStageCreateInfo(stage, module);
     }
+
+
+
+    /************************ main looping ************************/
+
 
     // update position of objects in the scene
     void updateScene() {
@@ -822,8 +821,11 @@ class ShadowMapping {
 
     // render frame
     void render() {
-      if (!prepared)
+      if (!swap_chain_ready)
         return;
+
+      // wait for the last frame to be finished (the fence is signaled by the present queue)
+      vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX);
 
       // prepare frame
       VkResult result = swapChain.acquireNextImage(semaphPresentComplete, &currentBuffer);
@@ -834,9 +836,12 @@ class ShadowMapping {
         VK_CHECK_RESULT(result);
       }
 
+      // now that we have the image, we can reset the fence to block the next frame
+      vkResetFences(device, 1, &waitFences[currentBuffer]);
+
       // submit frame to queue
       submit.info.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-      VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submit.info, VK_NULL_HANDLE));
+      VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submit.info, waitFences[currentBuffer]));
 
       // present frame and wait until the queue is idle
       result = swapChain.queuePresent(queue, currentBuffer, semaphRenderComplete);
@@ -850,10 +855,10 @@ class ShadowMapping {
 
     // called by render() on windows resize
     void recreateSwapChain() {
-      if (!prepared) {
+      if (!swap_chain_ready) {
         return;
       }
-      prepared = false;
+      swap_chain_ready = false;
 
       // ensure all operations on the device have been finished before destroying resources
       vkDeviceWaitIdle(device);
@@ -872,9 +877,7 @@ class ShadowMapping {
       swapChain.create(&width, &height);
 
       // recreate frame buffers attachments
-      vkDestroyImageView(device, scenePass.depth.view, nullptr);
-      vkDestroyImage(device, scenePass.depth.image, nullptr);
-      vkFreeMemory(device, scenePass.depth.mem, nullptr);
+      scenePass.depth.destroy(device);
       setupSceneDepthStencil();
 
       // recreate frame buffers
@@ -900,15 +903,94 @@ class ShadowMapping {
         camera.updateAspectRatio((float)width / (float)height);
       }
 
-      prepared = true;
+      swap_chain_ready = true;
+    }
+
+
+
+
+    /************************ cleanup resources ************************/
+
+
+    void cleanup() {
+      if (device) {
+        // wait for the device to finish before cleaning up
+        vkDeviceWaitIdle(device);
+
+        // unload model and shaders
+        scenes.clear();
+        for (auto& shaderModule : shaderModules) {
+          vkDestroyShaderModule(device, shaderModule, nullptr);
+        }
+
+        // cleanup depth sampler, depth attachment and framebuffers
+        vkDestroySampler(device, offscreenPass.depthSampler, nullptr);
+        offscreenPass.depth.destroy(device);
+        scenePass.depth.destroy(device);
+        vkDestroyFramebuffer(device, offscreenPass.frameBuffer, nullptr);
+        for (auto& framebuffer : scenePass.frameBuffers) {
+          vkDestroyFramebuffer(device, framebuffer, nullptr);
+        }
+
+        // swap chain and surface
+        swapChain.cleanup();
+
+        // uniform buffers
+        offscreenPass.uniformBuffer.destroy();
+        scenePass.uniformBuffer.destroy();
+
+        // descriptor pool & layout
+        vkDestroyDescriptorPool(device, descriptors.pool, nullptr);
+        vkDestroyDescriptorSetLayout(device, descriptors.layout, nullptr);
+
+        // pipelines & render passes
+        vkDestroyPipeline(device, pipelines.debug, nullptr);
+        vkDestroyPipeline(device, pipelines.offscreen, nullptr);
+        vkDestroyPipeline(device, pipelines.sceneShadow, nullptr);
+        vkDestroyPipelineLayout(device, pipelines.layout, nullptr);
+      	vkDestroyPipelineCache(device, pipelines.cache, nullptr);
+        vkDestroyRenderPass(device, offscreenPass.renderPass, nullptr);
+        vkDestroyRenderPass(device, scenePass.renderPass, nullptr);
+
+        // semaphores & fences
+        vkDestroySemaphore(device, semaphPresentComplete, nullptr);
+        vkDestroySemaphore(device, semaphRenderComplete, nullptr);
+        for (auto& fence : waitFences) {
+          vkDestroyFence(device, fence, nullptr);
+        }
+
+        // cleanup command pool and logical device
+        delete vulkanDevice;
+
+        // cleanup debug messenger and instance
+        vk::destroyDebugUtilsMessengerEXT(instance, debugMsgr, nullptr);
+        vkDestroyInstance(instance, nullptr);
+		  }
     }
 
 };
 
 
 
-int main() {
+int main(int argc, char* argv[]) {
   uint32_t w = 800, h = 600;
+  bool debug = false;
+
+  // parse command line arguments
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-w") == 0) {
+      // width
+      w = atoi(argv[i + 1]);
+      i++;
+    } else if (strcmp(argv[i], "-h") == 0) {
+      // height
+      h = atoi(argv[i + 1]);
+      i++;
+    } else if (strcmp(argv[i], "-d") == 0) {
+      // show shadow map (render scene from light's point of view)
+      debug = true;
+    }
+  }
 
   // init glfw
   glfwInit();
@@ -923,24 +1005,28 @@ int main() {
   camera.setRotation(glm::vec3(-30.0f, 0.0f, 0.0f));
   camera.setPerspective(70.0f, (float)w / (float)h, 1.0f, 256.0f);
 
-  // init vulkan object
-  ShadowMapping shadowMapping = ShadowMapping(window, camera);
-  shadowMapping.gpu_id = 0;
-  shadowMapping.width = w;
-  shadowMapping.height = h;
-  shadowMapping.init();
+  // init renderer
+  auto shadowMapping = new ShadowMapping(window, camera);
+  shadowMapping->gpu_id = 0;
+  shadowMapping->width = w;
+  shadowMapping->height = h;
+  shadowMapping->displayShadowMap = debug;
+  shadowMapping->init();
 
   // input callbacks
-  glfwSetWindowUserPointer(window, &shadowMapping);
-  glfwSetKeyCallback(window, shadowMapping.keyCallback);
-  glfwSetMouseButtonCallback(window, shadowMapping.mouseButtonCallback);
-  glfwSetCursorPosCallback(window, shadowMapping.cursorPositionCallback);
+  glfwSetWindowUserPointer(window, shadowMapping);
+  glfwSetKeyCallback(window, shadowMapping->keyCallback);
+  glfwSetMouseButtonCallback(window, shadowMapping->mouseButtonCallback);
+  glfwSetCursorPosCallback(window, shadowMapping->cursorPositionCallback);
 
   // main loop
-  shadowMapping.mainLoop();
+  shadowMapping->mainLoop();
 
   // cleanup
-  shadowMapping.cleanup();
+  delete shadowMapping; // unececessary, but just to be explicit
   glfwDestroyWindow(window);
   glfwTerminate();
+
+  // if you have a segfault after this line, it's probably bad cleanup
+  std::cout << "Shadow Mapping finished" << std::endl;
 }
