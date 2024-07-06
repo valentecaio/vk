@@ -10,12 +10,14 @@ layout (location = 4) in vec4 inShadowCoord;
 
 layout (location = 0) out vec4 outFragColor;
 
+// ambient light intensity
 #define ambient 0.1
 
-float textureProj(vec4 shadowCoord, vec2 offset) {
+// samples the shadow map to determine if the fragment is in shadow
+float textureProj(vec4 shadowCoord) {
 	float shadow = 1.0;
 	if (shadowCoord.z > -1.0 && shadowCoord.z < 1.0) {
-		float dist = texture(shadowMap, shadowCoord.st + offset).r;
+		float dist = texture(shadowMap, shadowCoord.st).r;
 		if (shadowCoord.w > 0.0 && dist < shadowCoord.z) {
 			shadow = ambient;
 		}
@@ -25,11 +27,10 @@ float textureProj(vec4 shadowCoord, vec2 offset) {
 
 
 void main() {	
-	float shadow = textureProj(inShadowCoord / inShadowCoord.w, vec2(0.0));
+	float shadow = textureProj(inShadowCoord / inShadowCoord.w);
 
 	vec3 N = normalize(inNormal);
 	vec3 L = normalize(inLightVec);
-	vec3 R = normalize(-reflect(L, N));
 	vec3 diffuse = max(dot(N, L), ambient) * inColor;
 
 	outFragColor = vec4(diffuse * shadow, 1.0);
