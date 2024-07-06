@@ -9,6 +9,7 @@
 #include "vk/instance.hpp"
 #include "vk/physical_device.hpp"
 #include "vk/command.hpp"
+#include "vk/framebufferattachment.hpp"
 
 class ShadowMapping {
   public:
@@ -24,8 +25,9 @@ class ShadowMapping {
 
     /************************ public settings ************************/
 
+    bool paused = false;             // flag to pause animations (movement still allowed)
     bool displayShadowMap = false;   // display the shadow map (debug)
-    uint32_t shadowMapize = 1024;    // size of the shadow map buffer
+    uint32_t shadowMapize = 2048;    // size of the shadow map buffer
     uint32_t gpu_id = 0;             // change gpu here
     float zNear = 1.0f;              // near plane for the shadow map
     float zFar = 96.0f;              // far plane for the shadow map
@@ -33,12 +35,14 @@ class ShadowMapping {
     uint32_t width = 800;            // surface window width
     uint32_t height = 600;           // surface window height
     float timerSpeed = 0.20f;        // multiplier to control the speed of animations
+    glm::vec3 lightPos = glm::vec3();// light position
     VkClearColorValue bgColor = {0.01f, 0.01f, 0.21f, 1.0f}; // background color
 
     // depth bias used to avoid shadowing artifacts
     float depthBiasConstant = 1.25f; // constant factor (always applied)
     float depthBiasSlope = 1.75f;    // slope factor (applied depending on polygon's slope)
-
+    // float depthBiasConstant = 0.0f; // constant factor (always applied)
+    // float depthBiasSlope = 0.0f;    // slope factor (applied depending on polygon's slope)
 
 
     /************************ private state ************************/
@@ -46,10 +50,8 @@ class ShadowMapping {
     GLFWwindow* window;                 // window handle
     Camera camera;                      // camera handle
     std::vector<vkglTF::Model> scenes;  // scenes
-    bool paused = false;                // flag to pause animations (movement still allowed)
     bool swap_chain_ready = false;      // flag to indicate if the swap chain is ready to acquire frames
     uint32_t currentBuffer = 0;         // index of the current swap chain buffer
-    glm::vec3 lightPos = glm::vec3();   // light position
     float timer = 0.0f;                 // frame rate independent timer, clamped from [0, 1]
 
     // constants
@@ -96,25 +98,10 @@ class ShadowMapping {
       VkPipelineStageFlags stageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     } submit;
 
-    // framebuffer attachment used in render passes
-    class FrameBufferAttachment {
-      public:
-        VkImage image;
-        VkDeviceMemory mem;
-        VkImageView view;
-
-        // destroy the image, memory, and view
-        void destroy(VkDevice device) {
-          vkDestroyImage(device, image, nullptr);
-          vkFreeMemory(device, mem, nullptr);
-          vkDestroyImageView(device, view, nullptr);
-        }
-    };
-
     // render pass of main scene
     struct ScenePass {
       std::vector<VkFramebuffer> frameBuffers;    // frame buffers for the scene rendering (one per swap chain image)
-      FrameBufferAttachment depth;                // depth attachments
+      vk::FrameBufferAttachment depth;            // depth attachments
       VkFormat depthFormat;
       vks::Buffer uniformBuffer;                  // uniform buffer for the scene rendering
       VkRenderPass renderPass;
@@ -124,7 +111,7 @@ class ShadowMapping {
     struct OffscreenPass {
       uint32_t width, height;                     // fixed size equal to shadowMapize
       VkFramebuffer frameBuffer;                  // only one because we render to the whole image
-      FrameBufferAttachment depth;                // depth attachment (shadow map)
+      vk::FrameBufferAttachment depth;            // depth attachment (shadow map)
       VkFormat depthFormat = VK_FORMAT_D16_UNORM; // 16 bits is enough for the shadow map
       VkSampler depthSampler;                     // we use this sampler in the fragment shader of the scene
       vks::Buffer uniformBuffer;                  // uniform buffer for the shadow map rendering
@@ -216,6 +203,10 @@ class ShadowMapping {
       // move camera
       auto frameDuration = std::chrono::duration<double, std::milli>(tEnd - tStart).count() / 1000.0f;
       camera.update(frameDuration);
+
+      // print camera position and rotation
+      // std::cout << camera.position.x << " " << camera.position.y << " " << camera.position.z << std::endl;
+      // std::cout << camera.rotation.x << " " << camera.rotation.y << " " << camera.rotation.z << std::endl;
 
       // update timer for next frame animation
       if (!paused) {
@@ -764,9 +755,10 @@ class ShadowMapping {
     void updateScene() {
       // animate the light source
       if (!paused) {
+        auto sintheta = sin(glm::radians(timer * 360.0f));
         lightPos.x = cos(glm::radians(timer * 360.0f)) * 40.0f;
-        lightPos.y = -50.0f + sin(glm::radians(timer * 360.0f)) * 20.0f;
-        lightPos.z = 25.0f + sin(glm::radians(timer * 360.0f)) * 5.0f;
+        lightPos.y = -50.0f + sintheta * 20.0f;
+        lightPos.z = 25.0f + sintheta * 5.0f;
       }
 
       // scene uniform buffer
@@ -969,6 +961,7 @@ int main(int argc, char* argv[]) {
   auto camera = Camera();
   camera.type = Camera::CameraType::firstperson;
   camera.setMovementSpeed(5.0f);
+  // camera.setPosition(glm::vec3(1.6f, 4.5f, -5.7f));
   camera.setPosition(glm::vec3(-0.6f, 9.5f, -14.0f));
   camera.setRotation(glm::vec3(-30.0f, 0.0f, 0.0f));
   camera.setPerspective(70.0f, (float)w / (float)h, 1.0f, 256.0f);
@@ -979,6 +972,8 @@ int main(int argc, char* argv[]) {
   shadowMapping->width = w;
   shadowMapping->height = h;
   shadowMapping->displayShadowMap = debug;
+  // shadowMapping->paused = true;
+  // shadowMapping->lightPos = glm::vec3(-2.0f, -50.0f, 10.0f);
   shadowMapping->init();
 
   // input callbacks
