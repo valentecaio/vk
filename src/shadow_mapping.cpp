@@ -174,28 +174,30 @@ class ShadowMapping {
     /************************ public methods ************************/
   public:
     void init() {
-      // initial vulkan setup (instance, device, graphics queue, model, semaphores, fences, surface, swap chain)
+      // initial vulkan setup (instance, physical and logical devices, command pool)
       vk::createInstance(instance);
       vk::setupDebugMessenger(instance, debugMsgr);
       vk::getPhysicalDevice(instance, gpu_id, physicalDevice);
       createDevice(); // init vulkanDevice, device and commandPool
-      vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue); // Graphics queue
+
+      // offscreen pass setup (without presentation)
+      setupOffscreenDepthAttachment();
+      setupOffscreenRenderPass();
+      setupOffscreenFrameBuffer();
+
+      // presentation setup (graphics queue, load model, swap chain, surface, sync objects)
+      vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue);
       loadModel();
-      createSwapChain(); // init swap chain and surface
+      createSwapChain(); // also inits surface
       createSemaphores();
       createFences();
 
-      // offscreen pass setup
-      // we can setup everything at once here because there is no resizing of the offscreen framebuffer
-      setupOffscreenRenderPassAndFramebuffer();
-
       // scene pass setup
-      // the depth stencil and the framebuffers need to be recreated after a window resize
-      setupSceneDepthStencil();
+      setupSceneDepthAttachment();
       setupSceneRenderPass();
       setupSceneFrameBuffers();
 
-      // common setup to both passes
+      // final setup considering both passes
       setupUniformBuffers();
       setupDescriptorSets();
       setupPipelines();
@@ -204,25 +206,22 @@ class ShadowMapping {
       swap_chain_ready = true;
     }
 
-    void mainLoop() {
-      while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+    // update scene and render a frame
+    void tick() {
+      auto tStart = std::chrono::high_resolution_clock::now();
+      updateScene();
+      renderFrame();
+      auto tEnd = std::chrono::high_resolution_clock::now();
 
-        auto tStart = std::chrono::high_resolution_clock::now();
+      // move camera
+      auto frameDuration = std::chrono::duration<double, std::milli>(tEnd - tStart).count() / 1000.0f;
+      camera.update(frameDuration);
 
-        updateScene();
-        render();
-
-        auto tEnd = std::chrono::high_resolution_clock::now();
-        auto frameDuration = std::chrono::duration<double, std::milli>(tEnd - tStart).count() / 1000.0f;
-        camera.update(frameDuration);
-
-        // update timer for next frame animation
-        if (!paused) {
-          timer += timerSpeed * frameDuration;
-          if (timer > 1.0)
-            timer -= 1.0f;
-        }
+      // update timer for next frame animation
+      if (!paused) {
+        timer += timerSpeed * frameDuration;
+        if (timer > 1.0)
+          timer -= 1.0f;
       }
     }
 
@@ -327,7 +326,7 @@ class ShadowMapping {
       }
     }
 
-    void setupSceneDepthStencil() {
+    void setupSceneDepthAttachment() {
       // init depth format
       if (!scenePass.depthFormat) {
         vks::tools::getSupportedDepthFormat(physicalDevice, &scenePass.depthFormat);
@@ -346,17 +345,8 @@ class ShadowMapping {
       VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &scenePass.depth.mem));
       VK_CHECK_RESULT(vkBindImageMemory(device, scenePass.depth.image, scenePass.depth.mem, 0));
 
-      VkImageViewCreateInfo imageViewCI{};
-      imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-      imageViewCI.viewType = VK_IMAGE_VIEW_TYPE_2D;
-      imageViewCI.image = scenePass.depth.image;
-      imageViewCI.format = scenePass.depthFormat;
-      imageViewCI.subresourceRange.baseMipLevel = 0;
-      imageViewCI.subresourceRange.levelCount = 1;
-      imageViewCI.subresourceRange.baseArrayLayer = 0;
-      imageViewCI.subresourceRange.layerCount = 1;
-      imageViewCI.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-      // Stencil aspect should only be set on depth + stencil formats (VK_FORMAT_D16_UNORM_S8_UINT..VK_FORMAT_D32_SFLOAT_S8_UINT
+      VkImageViewCreateInfo imageViewCI = vks::initializers::imageViewCreateInfo(scenePass.depth.image, scenePass.depthFormat);
+      // Stencil aspect should only be set on depth + stencil formats [VK_FORMAT_D16_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT]
       if (scenePass.depthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
         imageViewCI.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
       }
@@ -374,6 +364,10 @@ class ShadowMapping {
       attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
       attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
       attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+      VkAttachmentReference colorReference = {};
+      colorReference.attachment = 0;
+      colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
       // Depth attachment
       attachments[1].format = scenePass.depthFormat;
       attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
@@ -383,11 +377,6 @@ class ShadowMapping {
       attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
       attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
       attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-      VkAttachmentReference colorReference = {};
-      colorReference.attachment = 0;
-      colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
       VkAttachmentReference depthReference = {};
       depthReference.attachment = 1;
       depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -422,15 +411,13 @@ class ShadowMapping {
       dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
       dependencies[1].dependencyFlags = 0;
 
-      VkRenderPassCreateInfo renderPassInfo = {};
-      renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+      VkRenderPassCreateInfo renderPassInfo = vks::initializers::renderPassCreateInfo();
       renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
       renderPassInfo.pAttachments = attachments.data();
       renderPassInfo.subpassCount = 1;
       renderPassInfo.pSubpasses = &subpassDescription;
       renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
       renderPassInfo.pDependencies = dependencies.data();
-
       VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &scenePass.renderPass));
     }
 
@@ -440,27 +427,19 @@ class ShadowMapping {
       // Depth/Stencil attachment is the same for all frame buffers
       attachments[1] = scenePass.depth.view;
 
-      VkFramebufferCreateInfo frameBufferCreateInfo = {};
-      frameBufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-      frameBufferCreateInfo.pNext = NULL;
-      frameBufferCreateInfo.renderPass = scenePass.renderPass;
-      frameBufferCreateInfo.attachmentCount = 2;
-      frameBufferCreateInfo.pAttachments = attachments;
-      frameBufferCreateInfo.width = width;
-      frameBufferCreateInfo.height = height;
-      frameBufferCreateInfo.layers = 1;
+      VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo(scenePass.renderPass, width, height);
+      fbufCreateInfo.attachmentCount = 2;
+      fbufCreateInfo.pAttachments = attachments;
 
       // Create frame buffers for every swap chain image
       scenePass.frameBuffers.resize(swapChain.imageCount);
       for (uint32_t i = 0; i < scenePass.frameBuffers.size(); i++) {
         attachments[0] = swapChain.buffers[i].view;
-        VK_CHECK_RESULT(vkCreateFramebuffer(device, &frameBufferCreateInfo, nullptr, &scenePass.frameBuffers[i]));
+        VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &scenePass.frameBuffers[i]));
       }
     }
 
-    // Setup the offscreen framebuffer for rendering the scene from light's point-of-view to generate the shadow map
-    // The depth attachment of this framebuffer will then be used to sample from in the fragment shader of the shadowing pass
-    void setupOffscreenRenderPassAndFramebuffer() {
+    void setupOffscreenDepthAttachment() {
       offscreenPass.width = offscreenPass.height = shadowMapize;
 
       // depth attachment for shadow mapping
@@ -477,16 +456,7 @@ class ShadowMapping {
       VK_CHECK_RESULT(vkAllocateMemory(device, &memAlloc, nullptr, &offscreenPass.depth.mem));
       VK_CHECK_RESULT(vkBindImageMemory(device, offscreenPass.depth.image, offscreenPass.depth.mem, 0));
 
-      VkImageViewCreateInfo depthStencilView = vks::initializers::imageViewCreateInfo();
-      depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-      depthStencilView.format = offscreenPass.depthFormat;
-      depthStencilView.subresourceRange = {};
-      depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-      depthStencilView.subresourceRange.baseMipLevel = 0;
-      depthStencilView.subresourceRange.levelCount = 1;
-      depthStencilView.subresourceRange.baseArrayLayer = 0;
-      depthStencilView.subresourceRange.layerCount = 1;
-      depthStencilView.image = offscreenPass.depth.image;
+      VkImageViewCreateInfo depthStencilView = vks::initializers::imageViewCreateInfo(offscreenPass.depth.image, offscreenPass.depthFormat);
       VK_CHECK_RESULT(vkCreateImageView(device, &depthStencilView, nullptr, &offscreenPass.depth.view));
 
       // Create sampler to sample from to depth attachment
@@ -505,8 +475,11 @@ class ShadowMapping {
       sampler.maxLod = 1.0f;
       sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
       VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &offscreenPass.depthSampler));
+    }
 
-      // Create render pass
+    // Setup the offscreen framebuffer for rendering the scene from light's point-of-view to generate the shadow map
+    // The depth attachment of this framebuffer will then be used to sample from in the fragment shader of the shadowing pass
+    void setupOffscreenRenderPass() {
       VkAttachmentDescription attachmentDescription{};
       attachmentDescription.format = offscreenPass.depthFormat;
       attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -523,10 +496,10 @@ class ShadowMapping {
 
       VkSubpassDescription subpass = {};
       subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-      subpass.colorAttachmentCount = 0;                          // No color attachments
-      subpass.pDepthStencilAttachment = &depthReference;         // Reference to our depth attachment
+      subpass.colorAttachmentCount = 0;                  // no color attachments (framebuffer)
+      subpass.pDepthStencilAttachment = &depthReference; // reference to our depth attachment
 
-      // Use subpass dependencies for layout transitions
+      // Subpass dependencies for layout transitions
       std::array<VkSubpassDependency, 2> dependencies;
 
       dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -553,16 +526,12 @@ class ShadowMapping {
       renderPassCreateInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
       renderPassCreateInfo.pDependencies = dependencies.data();
       VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &offscreenPass.renderPass));
+    }
 
-
-      // Create frame buffer
-      VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
-      fbufCreateInfo.renderPass = offscreenPass.renderPass;
+    void setupOffscreenFrameBuffer() {
+      VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo(offscreenPass.renderPass, offscreenPass.width, offscreenPass.height);
       fbufCreateInfo.attachmentCount = 1;
       fbufCreateInfo.pAttachments = &offscreenPass.depth.view;
-      fbufCreateInfo.width = offscreenPass.width;
-      fbufCreateInfo.height = offscreenPass.height;
-      fbufCreateInfo.layers = 1;
       VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &offscreenPass.frameBuffer));
     }
 
@@ -820,7 +789,7 @@ class ShadowMapping {
     }
 
     // render frame
-    void render() {
+    void renderFrame() {
       if (!swap_chain_ready)
         return;
 
@@ -853,7 +822,7 @@ class ShadowMapping {
       VK_CHECK_RESULT(vkQueueWaitIdle(queue));
     }
 
-    // called by render() on windows resize
+    // called by renderFrame() on windows resize
     void recreateSwapChain() {
       if (!swap_chain_ready) {
         return;
@@ -865,11 +834,10 @@ class ShadowMapping {
 
       // update surface dimensions
       int w = 0, h = 0;
-      glfwGetFramebufferSize(window, &w, &h);
-      while (w == 0 || h == 0) {
+      do {
         glfwGetFramebufferSize(window, &w, &h);
         glfwWaitEvents();
-      }
+      } while (w == 0 || h == 0);
       width =  (uint32_t)w;
       height = (uint32_t)h;
 
@@ -878,7 +846,7 @@ class ShadowMapping {
 
       // recreate frame buffers attachments
       scenePass.depth.destroy(device);
-      setupSceneDepthStencil();
+      setupSceneDepthAttachment();
 
       // recreate frame buffers
       for (uint32_t i = 0; i < scenePass.frameBuffers.size(); i++) {
@@ -1020,7 +988,10 @@ int main(int argc, char* argv[]) {
   glfwSetCursorPosCallback(window, shadowMapping->cursorPositionCallback);
 
   // main loop
-  shadowMapping->mainLoop();
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+    shadowMapping->tick();
+  }
 
   // cleanup
   delete shadowMapping; // unececessary, but just to be explicit

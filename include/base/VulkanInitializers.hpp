@@ -60,6 +60,33 @@ namespace vks
       return imageCreateInfo;
     }
 
+    inline VkImageViewCreateInfo imageViewCreateInfo(VkImage image, VkFormat format)
+    {
+      VkImageViewCreateInfo imageViewCreateInfo {};
+      imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+      imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+      imageViewCreateInfo.subresourceRange = {};
+      imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+      imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+      imageViewCreateInfo.subresourceRange.levelCount = 1;
+      imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+      imageViewCreateInfo.subresourceRange.layerCount = 1;
+      imageViewCreateInfo.image = image;
+      imageViewCreateInfo.format = format;
+      return imageViewCreateInfo;
+    }
+
+    inline VkFramebufferCreateInfo framebufferCreateInfo(VkRenderPass renderPass, uint32_t width, uint32_t height)
+    {
+      VkFramebufferCreateInfo framebufferCreateInfo {};
+      framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+      framebufferCreateInfo.renderPass = renderPass;
+      framebufferCreateInfo.width = width;
+      framebufferCreateInfo.height = height;
+      framebufferCreateInfo.layers = 1;
+      return framebufferCreateInfo;
+    }
+
 
     // original methods //
 
